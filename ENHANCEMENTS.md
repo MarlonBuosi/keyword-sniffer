@@ -55,3 +55,42 @@ Estimated effort: ~1 hour, mostly `npm install`.
 After a clean burn-in: **Oracle free tier in São Paulo** (best cost + geography),
 or **Hetzner** for zero-friction setup at ~$5/mo. Avoid container PaaS unless
 you're comfortable wiring up a persistent volume.
+
+---
+
+## Linting & Formatting (Biome)
+
+**Goal:** enforce consistent style and catch lint issues automatically. Right
+now the only quality gate is TypeScript's `strict` typecheck (`tsc --noEmit`) —
+there's no linter or formatter.
+
+**Why [Biome](https://biomejs.dev):** a single fast (Rust) tool that replaces
+both ESLint and Prettier, with near-zero config and one dependency instead of
+the usual ESLint plugin sprawl.
+
+### Setup
+```bash
+npm install -D --save-exact @biomejs/biome
+npx biome init          # creates biome.json
+```
+
+Add scripts to `package.json`:
+```json
+{
+  "scripts": {
+    "lint": "biome check src",
+    "format": "biome format --write src",
+    "check": "biome check --write src"
+  }
+}
+```
+
+### Notes
+- Run `biome format --write src` once to normalize the existing code, then
+  review the diff in its own commit.
+- Optional: add a pre-commit hook (e.g. via `lefthook` or `husky`) to run
+  `biome check` on staged files.
+- Optional: a CI step (GitHub Actions) running `biome ci src` + `tsc --noEmit`
+  on push/PR.
+- Keep it advisory at first — don't let formatting churn bury the meaningful
+  diffs while the project is still evolving.
