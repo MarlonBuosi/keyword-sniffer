@@ -1,0 +1,10 @@
+{
+  "monitoredGroups": [
+    "1203630XXXXXXXXX@g.us",
+    "1203630YYYYYYYYY@g.us",
+    "1203630ZZZZZZZZZ@g.us"
+  ],
+  "keywords": ["keyword1", "promoção"],
+  "ownerJid": "5511XXXXXXXXX@s.whatsapp.net",
+  "sendDelayMs": { "min": 2000, "max": 8000 }
+}
