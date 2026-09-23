@@ -144,9 +144,16 @@ WhatsApp). CI runs typecheck → tests → build on every PR and push to `main`
 ### Production (AWS EC2 + systemd)
 Runs as the `wa-monitor` systemd service on an EC2 instance in São Paulo.
 First-time setup (console checklist, server bootstrap, pairing) is in
-**[deploy/AWS.md](deploy/AWS.md)**. After that, deploying the latest `main` is:
+**[deploy/AWS.md](deploy/AWS.md)**.
+
+**Deploys are automatic:** merging to `main` runs CI, and if the `quality` job
+passes, the `deploy` job ships that commit to the server via AWS SSM (no SSH,
+no stored keys), then fails the run if the bot doesn't reconnect. Redeploy
+from the Actions tab (*CI → Run workflow*). Setup: [deploy/AWS.md
+§7](deploy/AWS.md#7-automatic-deploys). Manual fallback:
 ```bash
-ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'
+ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'          # latest main
+ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh <sha>'    # a specific main commit (rollback)
 ```
 
 ---

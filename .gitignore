@@ -6,3 +6,6 @@ logs/
 *.log
 .DS_Store
 .env
+.build/
+.dist.old/
+.node_modules.old/
