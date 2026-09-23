@@ -59,90 +59,35 @@ Add scripts to `package.json`:
 
 ---
 
-## Automated Tests
+## ~~Automated Tests + CI~~ — done
 
-**Goal:** a real, committed test suite. Currently there are none — the pure
-logic was validated with throwaway scripts during development, but nothing
-persists.
+Vitest suite (`src/*.test.ts`, offline) covering keyword filtering, DM
+commands, config validation, the owner check, and the reconnect / pairing
+decisions — including regression tests for past incidents. CI
+(`.github/workflows/ci.yml`, job `quality`) runs typecheck → tests → build on
+PRs and pushes to `main`.
 
-**Recommended runner:** [Vitest](https://vitest.dev) (fast, TS-native, zero
-config) — or Node's built-in `node:test` if you'd rather avoid a dependency.
+Remaining test gaps (need a mocked Baileys socket):
+- **`notifier.ts`** — queue order, jitter between sends, `linkPreview: null`,
+  media path vs text fallback. Mock `sock.sendMessage`, use fake timers.
+- **`connection.ts` wiring** — the decisions are tested in
+  `connection-rules.ts`; the socket/event plumbing around them isn't.
 
-### Setup (Vitest)
-```bash
-npm install -D vitest
-```
-Add to `package.json`:
-```json
-{
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest"
-  }
-}
-```
-
-### What to cover first (highest value, easiest)
-- **`filter.ts`** — `normalize` (accent/case stripping), `matchKeywords`
-  (single, substring, multi-hit, no-match, empty), `extractText` (plain /
-  extended / caption / ephemeral-wrapped), `hasMedia`.
-- **`commands.ts`** — `handleCommand` with a mocked context: bulk add (dedupe +
-  already-present), newline/comma splitting, multi-word keywords, bulk remove +
-  not-found, `list`, `help`, unknown → help. (These mirror the throwaway
-  `_cmd.test.ts` that already passed — port them into `src/commands.test.ts`.)
-
-### Harder (needs a mocked Baileys socket)
-- **`notifier.ts`** — queue drains in order, jitter delay between sends,
-  `linkPreview: null` on text, media path vs text fallback. Mock `sock` with a
-  `sendMessage` spy.
-- **`connection.ts`** — reconnect/backoff decisions and the `FATAL_STATUS`
-  handling. Extract the "should reconnect / how long / fatal?" logic into a pure
-  function so it can be unit-tested without a real socket.
-
-### Notes
-- Keep tests **offline** — never hit WhatsApp. All suites should run against
-  pure functions or mocks.
-- Colocate as `src/<name>.test.ts` (Vitest picks them up by default).
+When Biome lands, add `npx biome ci src` to the `quality` job.
 
 ---
 
-## CI Pipeline (GitHub Actions)
+## Automatic Deploys (GitHub Actions → AWS SSM)
 
-**Goal:** every push / PR automatically runs the same quality gates locally
-expected — typecheck, lint, tests, build — so regressions are caught before
-merge.
+**Goal:** a merge to `main` deploys by itself, only after `quality` passes.
 
-Create `.github/workflows/ci.yml`:
-```yaml
-name: CI
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit          # typecheck
-      - run: npx biome ci src          # lint + format check (see Biome section)
-      - run: npm test                  # unit tests (see Automated Tests section)
-      - run: npm run build             # ensure it compiles to dist/
-```
-
-### Notes
-- Order matters least-expensive-first (typecheck → lint → test → build) so it
-  fails fast.
-- `biome ci` is check-only (no writes) — the CI-appropriate mode.
-- Add a branch-protection rule on `main` requiring the `quality` check to pass
-  before merge, once the suite is trustworthy.
-- Depends on the **Biome** and **Automated Tests** sections above being set up
-  first; until then, comment out the `biome`/`npm test` lines so CI still runs
-  typecheck + build.
-- No secrets needed — nothing here touches WhatsApp or `auth_state/`.
+- Add a `deploy` job to `ci.yml`: `needs: quality`, only on `push` to `main`.
+- Authenticate with **GitHub OIDC** (no stored AWS keys); IAM role trust
+  limited to `repo:MarlonBuosi/keyword-sniffer:ref:refs/heads/main`, permission
+  limited to `ssm:SendCommand` on this instance.
+- Run `sudo /opt/wa-monitor/deploy/update.sh` via SSM Run Command (the SSM
+  agent ships with Ubuntu AMIs; the instance needs a role with
+  `AmazonSSMManagedInstanceCore`). No inbound ports, no SSH key in GitHub.
+- First make `update.sh` build before swapping, so a failed build never
+  replaces the running version.
+- Afterwards SSH (port 22) can be closed entirely — SSM also provides a shell.

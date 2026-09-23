@@ -9,6 +9,7 @@ import { extractText, matchKeywords, hasMedia } from './filter'
 import { handleCommand } from './commands'
 import { Notifier } from './notifier'
 import { remember } from './store'
+import { isFromOwner, jidUser } from './jid'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -38,18 +39,6 @@ function applyConfig(next: AppConfig): void {
 }
 
 // ---- Helpers ----------------------------------------------------------------
-const jidUser = (jid?: string | null): string =>
-  jid ? jid.split('@')[0].split(':')[0] : ''
-
-/** Is this 1:1 message from the owner? Matches remoteJid or senderPn (LID-safe). */
-function isFromOwner(
-  key: { remoteJid?: string | null; senderPn?: string | null },
-  ownerJid: string,
-): boolean {
-  const owner = jidUser(ownerJid)
-  return jidUser(key.remoteJid) === owner || jidUser(key.senderPn) === owner
-}
-
 const groupNameCache = new Map<string, string>()
 async function resolveGroupName(sock: WASocket, jid: string): Promise<string> {
   const cached = groupNameCache.get(jid)

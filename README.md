@@ -1,5 +1,7 @@
 # WhatsApp Keyword Monitor
 
+[![CI](https://github.com/MarlonBuosi/keyword-sniffer/actions/workflows/ci.yml/badge.svg)](https://github.com/MarlonBuosi/keyword-sniffer/actions/workflows/ci.yml)
+
 A small, always-on bot that watches a set of high-traffic WhatsApp **groups**,
 matches every incoming message against a keyword list, and forwards the matches
 to your **personal** WhatsApp DM in near real time — so you don't have to read
@@ -47,7 +49,9 @@ to the owner.
 | File | Responsibility |
 |------|----------------|
 | `src/index.ts` | Wiring: message pipeline, owner-command routing, hot-reload |
-| `src/connection.ts` | Baileys socket, auth session, QR, reconnect/backoff |
+| `src/connection.ts` | Baileys socket, auth session, QR/pairing code, reconnect/backoff |
+| `src/connection-rules.ts` | Pure decisions: close → fatal / give up / retry, pairing checks |
+| `src/jid.ts` | JID helpers and the owner check for DM commands |
 | `src/config.ts` | Load + validate `config.json`, save, watch for changes |
 | `src/filter.ts` | Text extraction, accent normalization, keyword matching |
 | `src/notifier.ts` | Jittered alert queue, formatting, media re-send |
@@ -125,6 +129,17 @@ To pair with a code instead of a QR (handy on a server), set the **bot's**
 number, digits only: `PAIR_PHONE=5511912345678 npm run dev`, then on the bot
 phone use **Link a Device → Link with phone number instead** and type the code
 from the logs.
+
+### Tests
+```bash
+npm test             # run once (Vitest)
+npm run test:watch   # re-run on change
+npm run typecheck    # tsc over src/ including tests
+```
+Tests live next to the code as `src/*.test.ts` and run fully offline (no
+WhatsApp). CI runs typecheck → tests → build on every PR and push to `main`
+(`.github/workflows/ci.yml`); the production build excludes test files
+(`tsconfig.build.json`).
 
 ### Production (AWS EC2 + systemd)
 Runs as the `wa-monitor` systemd service on an EC2 instance in São Paulo.
