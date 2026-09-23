@@ -11,6 +11,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/MarlonBuosi/keyword-sniffer.git}"
 REPO_REF="${REPO_REF:-main}"
 APP_DIR=/opt/wa-monitor
+STATE_DIR=/var/lib/wa-monitor   # session + config; matches StateDirectory= in the unit
 APP_USER=wa
 NODE_MAJOR=24
 ENV_FILE=/etc/wa-monitor.env
@@ -61,9 +62,9 @@ fi
 echo "==> build"
 as_app bash -c "cd '$APP_DIR' && npm ci --no-audit --no-fund && npm run build"
 
-# The session is a live credential: owner-only. Must exist before the unit
-# starts (ReadWritePaths).
-install -d -m 700 -o "$APP_USER" -g "$APP_USER" "$APP_DIR/auth_state"
+# systemd creates this on first start too; create it now so config.json can be
+# copied in beforehand. The session is a live credential: owner-only.
+install -d -m 700 -o "$APP_USER" -g "$APP_USER" "$STATE_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   install -m 600 /dev/null "$ENV_FILE"
@@ -82,6 +83,6 @@ systemctl enable --quiet wa-monitor
 
 echo
 echo "Done. The service is enabled but NOT started."
-[[ -f "$APP_DIR/config.json" ]] || echo "  - copy config.json to $APP_DIR/config.json (owner $APP_USER, mode 600)"
+[[ -f "$STATE_DIR/config.json" ]] || echo "  - copy config.json to $STATE_DIR/config.json (owner $APP_USER, mode 600)"
 echo "  - to pair: set PAIR_PHONE in $ENV_FILE, then: systemctl start wa-monitor"
 echo "  - see deploy/AWS.md for the full steps"

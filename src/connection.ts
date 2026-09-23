@@ -9,7 +9,7 @@ import qrcode from 'qrcode-terminal'
 import type { Logger } from 'pino'
 import { recall } from './store'
 
-const AUTH_DIR = 'auth_state'
+const AUTH_DIR = process.env.AUTH_DIR ?? 'auth_state' // overridable, like CONFIG_PATH
 
 // Reconnect backoff: never hammer WhatsApp (rapid retry storms read as robotic
 // and are bad for ban risk). Exponential from 2s up to 60s, capped attempts.
@@ -88,6 +88,19 @@ export async function startSock(
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+
+  // requestPairingCode() persists `creds.me`, and Baileys sends a *login*
+  // (not a registration) whenever `me` is set. If a previous socket requested
+  // a code that was never entered, the next connect would log in as a device
+  // that doesn't exist, get a 401, and exit fatally — instead of emitting a QR
+  // event and requesting a fresh code. A completed pairing sets `registered`
+  // (code flow) or `account` (QR flow), so `me` without either is leftover.
+  if (PAIR_PHONE && state.creds.me && !state.creds.registered && !state.creds.account) {
+    logger.info('discarding unfinished pairing attempt; a new code will be requested')
+    state.creds.me = undefined
+    state.creds.pairingCode = undefined
+    await saveCreds()
+  }
 
   // The WA-web version bundled with 6.7.23 (Nov 2025) is now rejected by
   // WhatsApp's servers with a 405 before pairing. fetchLatestBaileysVersion()

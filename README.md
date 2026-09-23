@@ -162,7 +162,9 @@ systemctl status wa-monitor                  # running? last exit status?
 sudo systemctl restart wa-monitor            # or stop / start
 journalctl -u wa-monitor -f -o cat | /opt/wa-monitor/node_modules/.bin/pino-pretty   # live logs
 ```
-Configuration for the service (e.g. `LOG_LEVEL`, `PAIR_PHONE`) lives in
+Code is in `/opt/wa-monitor`; state (`config.json`, `auth_state/`) is in
+`/var/lib/wa-monitor` (set via the `CONFIG_PATH` / `AUTH_DIR` env vars in the
+unit). Service settings (e.g. `LOG_LEVEL`, `PAIR_PHONE`) live in
 `/etc/wa-monitor.env`. More in [deploy/AWS.md](deploy/AWS.md#day-to-day).
 
 ### Session backup

@@ -74,11 +74,13 @@ Test: `ssh wa-monitor 'uname -m'` → `aarch64`.
 ssh wa-monitor 'curl -fsSL https://raw.githubusercontent.com/MarlonBuosi/keyword-sniffer/main/deploy/setup.sh -o /tmp/setup.sh && sudo bash /tmp/setup.sh'
 ```
 
-Copy the config over (owned by the service user, since DM commands rewrite it):
+Copy the config over. On the server, state lives in `/var/lib/wa-monitor/`
+(`config.json` + `auth_state/`), separate from the code in `/opt/wa-monitor/`.
+The config is owned by the service user, since DM commands rewrite it:
 
 ```bash
 scp config.json wa-monitor:/tmp/config.json
-ssh wa-monitor 'sudo install -o wa -g wa -m 600 /tmp/config.json /opt/wa-monitor/config.json && rm /tmp/config.json'
+ssh wa-monitor 'sudo install -o wa -g wa -m 600 /tmp/config.json /var/lib/wa-monitor/config.json && rm /tmp/config.json'
 ```
 
 ## 5. Pair the bot number
@@ -120,12 +122,12 @@ journalctl -u wa-monitor -o cat -n 50 | /opt/wa-monitor/node_modules/.bin/pino-p
 | Deploy latest `main` | `ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'` |
 | Live logs | `ssh wa-monitor "journalctl -u wa-monitor -f -o cat \| /opt/wa-monitor/node_modules/.bin/pino-pretty"` |
 | Restart / stop | `ssh wa-monitor 'sudo systemctl restart wa-monitor'` (or `stop`) |
-| Edit keywords | DM the bot, or edit `/opt/wa-monitor/config.json` (hot-reloaded) |
+| Edit keywords | DM the bot, or `sudo -u wa nano /var/lib/wa-monitor/config.json` (hot-reloaded) |
 | OS updates | `ssh wa-monitor 'sudo apt-get update && sudo apt-get -y upgrade'` (Ubuntu also installs security updates automatically) |
 
 **`failed` with `status=2`** means WhatsApp rejected the session (logged out /
 banned). systemd deliberately doesn't restart it. Re-pair:
-`sudo systemctl stop wa-monitor && sudo find /opt/wa-monitor/auth_state -mindepth 1 -delete`,
+`sudo systemctl stop wa-monitor && sudo find /var/lib/wa-monitor/auth_state -mindepth 1 -delete`,
 then repeat step 5.
 
 **Restoring from a snapshot:** EC2 → *Snapshots* → pick one → *Create volume*

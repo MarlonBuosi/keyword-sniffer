@@ -13,7 +13,9 @@ export interface AppConfig {
   forwardAllLimit: number
 }
 
-export const CONFIG_PATH = resolve(process.cwd(), 'config.json')
+// Overridable so production can keep state outside the code checkout
+// (see deploy/wa-monitor.service).
+export const CONFIG_PATH = resolve(process.cwd(), process.env.CONFIG_PATH ?? 'config.json')
 
 /** Read + parse + validate config.json. Throws with a clear message on any problem. */
 export function loadConfig(): AppConfig {

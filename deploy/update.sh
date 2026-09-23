@@ -17,16 +17,23 @@ fi
 # Run as the app user from / (git refuses to run in a cwd it cannot read, e.g. ~ubuntu).
 as_app() { (cd / && sudo -u "$APP_USER" -H "$@"); }
 
-as_app git -C "$APP_DIR" pull --ff-only
-as_app bash -c "cd '$APP_DIR' && npm ci --no-audit --no-fund && npm run build"
+# Everything runs inside main(), which bash parses in full before executing:
+# the git pull below may rewrite this very file mid-run.
+main() {
+  as_app git -C "$APP_DIR" pull --ff-only
+  as_app bash -c "cd '$APP_DIR' && npm ci --no-audit --no-fund && npm run build"
 
-# Pick up unit-file changes shipped with the code.
-if ! cmp -s "$APP_DIR/deploy/wa-monitor.service" /etc/systemd/system/wa-monitor.service; then
-  install -m 644 "$APP_DIR/deploy/wa-monitor.service" /etc/systemd/system/wa-monitor.service
-  systemctl daemon-reload
-  echo "unit file updated"
-fi
+  # Pick up unit-file changes shipped with the code.
+  if ! cmp -s "$APP_DIR/deploy/wa-monitor.service" /etc/systemd/system/wa-monitor.service; then
+    install -m 644 "$APP_DIR/deploy/wa-monitor.service" /etc/systemd/system/wa-monitor.service
+    systemctl daemon-reload
+    echo "unit file updated"
+  fi
 
-systemctl restart wa-monitor
-sleep 3
-systemctl --no-pager --lines=0 status wa-monitor
+  systemctl restart wa-monitor
+  sleep 3
+  systemctl --no-pager --lines=0 status wa-monitor
+}
+
+main "$@"
+exit

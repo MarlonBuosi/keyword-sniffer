@@ -18,6 +18,13 @@ User=wa
 Group=wa
 WorkingDirectory=/opt/wa-monitor
 Environment=NODE_ENV=production
+# State (session + config) lives outside the code checkout, in the systemd
+# StateDirectory below: git pulls can't touch it, and the whole directory is
+# writable, so editors' atomic saves of config.json reach the running service.
+Environment=AUTH_DIR=/var/lib/wa-monitor/auth_state
+Environment=CONFIG_PATH=/var/lib/wa-monitor/config.json
+StateDirectory=wa-monitor
+StateDirectoryMode=0700
 # LOG_LEVEL, PAIR_PHONE (optional)
 EnvironmentFile=-/etc/wa-monitor.env
 ExecStart=/usr/bin/node dist/index.js
@@ -30,12 +37,11 @@ RestartPreventExitStatus=2
 
 MemoryMax=400M
 
-# Hardening: the app may only write its session and config.
+# Hardening: the app may only write its StateDirectory.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/opt/wa-monitor/auth_state -/opt/wa-monitor/config.json
 UMask=0077
 
 [Install]
