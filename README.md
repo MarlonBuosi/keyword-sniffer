@@ -6,7 +6,7 @@ to your **personal** WhatsApp DM in near real time — so you don't have to read
 the firehose to catch the messages you care about.
 
 Built on [Baileys](https://github.com/WhiskeySockets/Baileys) (the multi-device
-WhatsApp Web protocol), TypeScript, and PM2.
+WhatsApp Web protocol) and TypeScript, deployed to AWS EC2 under systemd.
 
 ---
 
@@ -23,7 +23,7 @@ WhatsApp Web protocol), TypeScript, and PM2.
 - **Config hot-reload** — edit `config.json` and it's picked up live.
 - **Resilient** — auto-reconnects with backoff, persists its session across
   restarts, and honors decrypt-retry requests so messages aren't lost.
-- **Runs unattended** — managed by PM2 (restart on crash, start on boot).
+- **Runs unattended** — systemd service on a small EC2 instance (restart on crash, start on boot).
 
 ---
 
@@ -121,13 +121,17 @@ On first run, scan the QR (terminal) from the **bot** phone:
 **WhatsApp → Linked Devices → Link a Device**. The session is saved to
 `auth_state/`, so subsequent starts reconnect without a QR.
 
-### Production (PM2)
+To pair with a code instead of a QR (handy on a server), set the **bot's**
+number, digits only: `PAIR_PHONE=5511912345678 npm run dev`, then on the bot
+phone use **Link a Device → Link with phone number instead** and type the code
+from the logs.
+
+### Production (AWS EC2 + systemd)
+Runs as the `wa-monitor` systemd service on an EC2 instance in São Paulo.
+First-time setup (console checklist, server bootstrap, pairing) is in
+**[deploy/AWS.md](deploy/AWS.md)**. After that, deploying the latest `main` is:
 ```bash
-npm run build                    # compile to dist/
-npm install -g pm2               # once
-pm2 start ecosystem.config.js
-pm2 save                         # freeze process list for reboot
-pm2 startup                      # print a command to enable start-on-boot; run it
+ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'
 ```
 
 ---
@@ -152,52 +156,28 @@ You can also just edit `config.json` directly — the bot hot-reloads it.
 
 ## Operations
 
-### Useful PM2 commands
+### Service commands (on the server)
 ```bash
-pm2 status                                   # is wa-monitor online?
-pm2 logs wa-monitor --lines 50 --nostream    # recent logs
-pm2 logs wa-monitor --raw | npx pino-pretty  # pretty-print prod JSON logs
-pm2 restart wa-monitor                       # after `npm run build`
-pm2 stop wa-monitor                          # to run `npm run dev` instead
+systemctl status wa-monitor                  # running? last exit status?
+sudo systemctl restart wa-monitor            # or stop / start
+journalctl -u wa-monitor -f -o cat | /opt/wa-monitor/node_modules/.bin/pino-pretty   # live logs
 ```
+Configuration for the service (e.g. `LOG_LEVEL`, `PAIR_PHONE`) lives in
+`/etc/wa-monitor.env`. More in [deploy/AWS.md](deploy/AWS.md#day-to-day).
 
 ### Session backup
 `auth_state/` is the WhatsApp session — back it up so a disk loss means a
-restart, not a re-pair:
+restart, not a re-pair. On AWS, a Lifecycle Manager policy takes **daily EBS
+snapshots** of the whole disk (see [deploy/AWS.md](deploy/AWS.md)). For an ad
+hoc local tarball:
 ```bash
 ./scripts/backup-auth-state.sh               # timestamped tarball, keeps last 14
-```
-Schedule nightly via cron:
-```
-0 3 * * * /absolute/path/to/scripts/backup-auth-state.sh
 ```
 
 ### Keeping the link alive
 Linked devices are dropped if the bot phone stays offline ~14 days. Power the
 bot phone on and let it reach WhatsApp every week or two, and keep its SIM/eSIM
 active.
-
----
-
-## Deploying to a cloud host
-
-The bot is fully portable — all state is in `auth_state/` + `config.json`.
-
-1. Provision a small Linux VPS (Node ≥ 18). A region near your account's usual
-   location is preferable.
-2. Copy the repo **plus `auth_state/` and `config.json`** to the server — copying
-   the session means **no re-pairing** (the server inherits the linked device).
-3. `npm install && npm run build`
-4. `pm2 start ecosystem.config.js && pm2 save && pm2 startup` (systemd on Linux).
-5. Re-add the backup cron; stop the old instance.
-
-**Pairing on a headless box** (only if you don't copy `auth_state/`): run
-`node dist/index.js` in the foreground over SSH and scan the ASCII QR from your
-screen, then hand off to PM2. (A phone-number pairing-code flow can be added if
-preferred.)
-
-> `auth_state/` is a live credential — restrict access to it and lock the box
-> down (SSH keys, firewall).
 
 ---
 
@@ -210,9 +190,9 @@ preferred.)
 | **`failed to decrypt message` (groups)** | Normal right after joining/linking — the device lacks some senders' group keys yet. Tapers off as senders re-send; keep the bot connected. |
 | **"Waiting for this message" on your phone** | Signal session desync (often after repeated re-pairs). Fix: on your phone, clear the chat with the bot, then send it one message to rebuild a clean session. |
 | **515 right after pairing** | Expected — WhatsApp requires one reconnect after linking. The bot auto-reconnects. |
-| **Needs re-pair** | Delete `auth_state/` and restart to show a fresh QR. |
-| **`pm2 status` shows `waiting restart` / `stopped` with 0 restarts** | The session was rejected (401/403/405) and the bot exited with code 2, which PM2 is configured not to restart (`stop_exit_codes`). Re-pair as above. |
-| **Frequent restarts during outages** | Expected — after 6 failed reconnects (~2 min) the bot exits and PM2 restarts it fresh. |
+| **Needs re-pair** | Delete the contents of `auth_state/` and restart to pair again (QR, or code with `PAIR_PHONE`). On the server, see [deploy/AWS.md](deploy/AWS.md#day-to-day). |
+| **`systemctl status` shows `failed` with `status=2`** | The session was rejected (401/403/405) and the bot exited with code 2, which the unit is configured not to restart (`RestartPreventExitStatus=2`). Re-pair as above. |
+| **Frequent restarts during outages** | Expected — after 6 failed reconnects (~2 min) the bot exits and systemd restarts it fresh. |
 
 ---
 
@@ -233,4 +213,4 @@ For personal/educational use. You are responsible for how you use it.
 
 ## Tech stack
 
-TypeScript · [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `6.7.23` · pino · PM2
+TypeScript · [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `6.7.23` · pino · systemd on AWS EC2
