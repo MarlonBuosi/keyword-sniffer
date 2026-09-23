@@ -1,0 +1,6 @@
+{
+  // Production build: everything in tsconfig.json except tests, so they never
+  // land in dist/. `npm run typecheck` uses tsconfig.json and covers tests too.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

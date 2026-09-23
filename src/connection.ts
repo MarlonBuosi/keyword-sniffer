@@ -2,39 +2,24 @@ import makeWASocket, {
   Browsers,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason,
   type WASocket,
   type BaileysEventMap,
 } from '@whiskeysockets/baileys'
 import qrcode from 'qrcode-terminal'
 import type { Logger } from 'pino'
 import { recall } from './store'
+import {
+  EXIT_FATAL,
+  EXIT_RETRY,
+  MAX_RECONNECT_ATTEMPTS,
+  decideOnClose,
+  isAbandonedPairing,
+  isValidPairPhone,
+} from './connection-rules'
 
 const AUTH_DIR = process.env.AUTH_DIR ?? 'auth_state' // overridable, like CONFIG_PATH
 
-// Reconnect backoff: never hammer WhatsApp (rapid retry storms read as robotic
-// and are bad for ban risk). Exponential from 2s up to 60s, capped attempts.
-const BASE_RECONNECT_MS = 2_000
-const MAX_RECONNECT_MS = 60_000
-const MAX_RECONNECT_ATTEMPTS = 6
-
-// Status codes where reconnecting won't help — the saved session is invalid or
-// rejected. Stop and require a fresh pairing instead of looping.
-const FATAL_STATUS = new Set<number>([
-  DisconnectReason.loggedOut, // 401
-  DisconnectReason.forbidden, // 403
-  405, // connection failure / version mismatch — usually a stale/mismatched session
-])
-
 const VERSION_FETCH_TIMEOUT_MS = 10_000
-
-// Exit codes. Returning without exiting would leave a zombie process that the
-// supervisor still reports as running (the config watcher keeps the event loop
-// alive). EXIT_FATAL is listed in deploy/wa-monitor.service
-// `RestartPreventExitStatus`, so systemd stays down instead of restart-looping
-// a dead session against WhatsApp.
-const EXIT_RETRY = 1
-const EXIT_FATAL = 2
 
 // Headless pairing: when set to the bot's phone number (digits only, with
 // country code), an unpaired session requests an 8-character pairing code to
@@ -81,7 +66,7 @@ export async function startSock(
   const waLogger = logger.child({ mod: 'baileys' })
   waLogger.level = 'warn'
 
-  if (PAIR_PHONE !== undefined && !/^\d{10,15}$/.test(PAIR_PHONE)) {
+  if (PAIR_PHONE !== undefined && !isValidPairPhone(PAIR_PHONE)) {
     logger.error(
       'PAIR_PHONE must be the bot number as digits only, with country code (e.g. 5511912345678)',
     )
@@ -90,13 +75,9 @@ export async function startSock(
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
 
-  // requestPairingCode() persists `creds.me`, and Baileys sends a *login*
-  // (not a registration) whenever `me` is set. If a previous socket requested
-  // a code that was never entered, the next connect would log in as a device
-  // that doesn't exist, get a 401, and exit fatally — instead of emitting a QR
-  // event and requesting a fresh code. A completed pairing sets `registered`
-  // (code flow) or `account` (QR flow), so `me` without either is leftover.
-  if (PAIR_PHONE && state.creds.me && !state.creds.registered && !state.creds.account) {
+  // A code requested earlier but never entered would make the next connect
+  // log in as a nonexistent device (see isAbandonedPairing).
+  if (isAbandonedPairing(state.creds, PAIR_PHONE)) {
     logger.info('discarding unfinished pairing attempt; a new code will be requested')
     state.creds.me = undefined
     state.creds.pairingCode = undefined
@@ -182,25 +163,24 @@ export async function startSock(
 
       logger.warn({ statusCode }, 'connection closed')
 
-      if (statusCode !== undefined && FATAL_STATUS.has(statusCode)) {
+      const decision = decideOnClose(statusCode, attempt)
+      if (decision.kind === 'fatal') {
         logger.error(
           { statusCode },
           `unrecoverable close — delete the "${AUTH_DIR}" directory and restart to re-pair`,
         )
         process.exit(EXIT_FATAL)
       }
-
-      const nextAttempt = attempt + 1
-      if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
+      if (decision.kind === 'give-up') {
         logger.error(
           `gave up after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts — exiting so the supervisor restarts us`,
         )
         process.exit(EXIT_RETRY)
       }
 
-      const delay = Math.min(BASE_RECONNECT_MS * 2 ** attempt, MAX_RECONNECT_MS)
-      logger.info({ nextAttempt, delayMs: delay }, 'reconnecting after backoff')
-      setTimeout(() => void startSock(logger, handlers, nextAttempt), delay)
+      const { nextAttempt, delayMs } = decision
+      logger.info({ nextAttempt, delayMs }, 'reconnecting after backoff')
+      setTimeout(() => void startSock(logger, handlers, nextAttempt), delayMs)
     }
   })
 

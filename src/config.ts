@@ -37,6 +37,9 @@ export function loadConfig(): AppConfig {
 }
 
 export function validateConfig(input: unknown): AppConfig {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw new Error('invalid config.json: must be a JSON object')
+  }
   const c = input as Record<string, unknown>
   const errors: string[] = []
 
@@ -61,6 +64,8 @@ export function validateConfig(input: unknown): AppConfig {
     errors.push('ownerJid must be a string ending in "@s.whatsapp.net"')
   } else if (/X{2,}/i.test(ownerJid)) {
     errors.push('ownerJid still contains placeholder "X"s — set your real number')
+  } else if (!/^\d+@s\.whatsapp\.net$/.test(ownerJid)) {
+    errors.push('ownerJid must be digits only before "@s.whatsapp.net" (country code + number)')
   }
 
   const delay = c.sendDelayMs as Record<string, unknown> | undefined
