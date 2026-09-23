@@ -1,4 +1,5 @@
 import makeWASocket, {
+  Browsers,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
@@ -123,7 +124,10 @@ export async function startSock(
     auth: state,
     logger: waLogger,
     printQRInTerminal: false,
-    browser: ['WA Keyword Monitor', 'Chrome', '1.0.0'],
+    // Must look like a real OS + browser: pairing-code linking sends this to
+    // the phone ("Chrome (Ubuntu)"), which rejects unknown OS names with
+    // "Couldn't link device". QR pairing doesn't validate it.
+    browser: Browsers.ubuntu('Chrome'),
     // Robustness against post-connect timeouts (408 on init queries / keep-alive):
     keepAliveIntervalMs: 30_000,
     defaultQueryTimeoutMs: 60_000,
