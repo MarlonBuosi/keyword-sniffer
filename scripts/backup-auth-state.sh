@@ -9,6 +9,7 @@
 # Schedule nightly, e.g. crontab:
 #   0 3 * * *  /Users/you/Dev/whatsapp-keyword-monitor/scripts/backup-auth-state.sh
 set -euo pipefail
+umask 077 # archives contain a live session credential: owner-only
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$PROJECT_DIR/auth_state"
@@ -21,6 +22,7 @@ if [[ ! -d "$SRC" ]]; then
 fi
 
 mkdir -p "$DEST"
+chmod 700 "$DEST"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 ARCHIVE="$DEST/auth_state-$STAMP.tar.gz"
 

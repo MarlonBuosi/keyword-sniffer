@@ -2,7 +2,7 @@ import { installConsoleFilter } from './log-filter'
 installConsoleFilter() // silence libsignal console noise before anything logs
 
 import pino from 'pino'
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { MessageUpsertType, WAMessage, WASocket } from '@whiskeysockets/baileys'
 import { startSock } from './connection'
 import { loadConfig, saveConfig, watchConfig, type AppConfig } from './config'
 import { extractText, matchKeywords, hasMedia } from './filter'
@@ -63,6 +63,93 @@ async function resolveGroupName(sock: WASocket, jid: string): Promise<string> {
   }
 }
 
+/** Process one upserted message. The caller isolates failures per message. */
+async function handleMessage(
+  msg: WAMessage,
+  type: MessageUpsertType,
+  sock: WASocket,
+): Promise<void> {
+  // Remember our own outgoing messages so getMessage() can resend them
+  // on a decrypt-retry request. Do this regardless of upsert type.
+  if (msg.key.fromMe) {
+    if (msg.key.id && msg.message) remember(msg.key.id, msg.message)
+    return // self-message guard (no loops)
+  }
+
+  if (type !== 'notify') return // incoming: real-time only, skip history
+
+  const jid = msg.key.remoteJid
+  if (!jid) return
+
+  // ---- 1:1 chats: possible owner command ----
+  if (!jid.endsWith('@g.us')) {
+    const key = msg.key as { remoteJid?: string; senderPn?: string }
+    if (isFromOwner(key, config.ownerJid)) {
+      const text = extractText(msg.message)
+      logger.info({ preview: text.slice(0, 60) }, 'owner DM received')
+      if (text && notifier) {
+        await handleCommand(text, {
+          sock,
+          ownerJid: config.ownerJid,
+          getKeywords: () => config.keywords,
+          setKeywords: (keywords) => {
+            const next = { ...config, keywords }
+            saveConfig(next) // persist (also triggers the watcher)
+            applyConfig(next) // apply immediately (no reload lag)
+          },
+          logger,
+        })
+      }
+    }
+    return
+  }
+
+  // ---- Group messages: keyword filter ----
+  if (!monitored.has(jid)) return
+
+  const text = extractText(msg.message)
+  if (!text) return
+
+  const hits = matchKeywords(text, config.keywords)
+  logger.debug(
+    { jid, matched: hits, preview: text.slice(0, 100) },
+    'group message read',
+  )
+
+  if (config.forwardAll) {
+    if (forwardCount >= config.forwardAllLimit) return // safety cap
+    forwardCount++
+    if (forwardCount === config.forwardAllLimit) {
+      logger.warn(
+        { limit: config.forwardAllLimit },
+        'forward-all cap reached — no more forwards until restart/config change',
+      )
+    }
+  } else if (hits.length === 0) {
+    return
+  }
+
+  const groupName = await resolveGroupName(sock, jid)
+  const pkey = msg.key as { participant?: string; participantPn?: string }
+  const sender =
+    msg.pushName ||
+    jidUser(pkey.participantPn) ||
+    jidUser(pkey.participant) ||
+    'unknown'
+
+  logger.info(
+    { jid, groupName, keywords: hits, sender, forwardAll: config.forwardAll },
+    config.forwardAll ? 'forwarding (test mode)' : 'keyword match',
+  )
+  notifier?.enqueue({
+    groupName,
+    sender,
+    keyword: config.forwardAll ? '' : hits.join(', '),
+    text,
+    mediaMsg: hasMedia(msg.message) ? msg : undefined,
+  })
+}
+
 // ---- Main -------------------------------------------------------------------
 async function main() {
   logger.info(
@@ -110,85 +197,13 @@ async function main() {
 
     onMessage: async ({ messages, type }, sock) => {
       for (const msg of messages) {
-        // Remember our own outgoing messages so getMessage() can resend them
-        // on a decrypt-retry request. Do this regardless of upsert type.
-        if (msg.key.fromMe) {
-          if (msg.key.id && msg.message) remember(msg.key.id, msg.message)
-          continue // self-message guard (no loops)
+        // Isolate each message: an unhandled rejection here would crash the
+        // process and drop the rest of the batch.
+        try {
+          await handleMessage(msg, type, sock)
+        } catch (err) {
+          logger.error({ err, jid: msg.key.remoteJid }, 'failed to handle message')
         }
-
-        if (type !== 'notify') continue // incoming: real-time only, skip history
-
-        const jid = msg.key.remoteJid
-        if (!jid) continue
-
-        // ---- 1:1 chats: possible owner command ----
-        if (!jid.endsWith('@g.us')) {
-          const key = msg.key as { remoteJid?: string; senderPn?: string }
-          if (isFromOwner(key, config.ownerJid)) {
-            const text = extractText(msg.message)
-            logger.info({ preview: text.slice(0, 60) }, 'owner DM received')
-            if (text && notifier) {
-              await handleCommand(text, {
-                sock,
-                ownerJid: config.ownerJid,
-                getKeywords: () => config.keywords,
-                setKeywords: (keywords) => {
-                  const next = { ...config, keywords }
-                  saveConfig(next) // persist (also triggers the watcher)
-                  applyConfig(next) // apply immediately (no reload lag)
-                },
-                logger,
-              })
-            }
-          }
-          continue
-        }
-
-        // ---- Group messages: keyword filter ----
-        if (!monitored.has(jid)) continue
-
-        const text = extractText(msg.message)
-        if (!text) continue
-
-        const hits = matchKeywords(text, config.keywords)
-        logger.debug(
-          { jid, matched: hits, preview: text.slice(0, 100) },
-          'group message read',
-        )
-
-        if (config.forwardAll) {
-          if (forwardCount >= config.forwardAllLimit) continue // safety cap
-          forwardCount++
-          if (forwardCount === config.forwardAllLimit) {
-            logger.warn(
-              { limit: config.forwardAllLimit },
-              'forward-all cap reached — no more forwards until restart/config change',
-            )
-          }
-        } else if (hits.length === 0) {
-          continue
-        }
-
-        const groupName = await resolveGroupName(sock, jid)
-        const pkey = msg.key as { participant?: string; participantPn?: string }
-        const sender =
-          msg.pushName ||
-          jidUser(pkey.participantPn) ||
-          jidUser(pkey.participant) ||
-          'unknown'
-
-        logger.info(
-          { jid, groupName, keywords: hits, sender, forwardAll: config.forwardAll },
-          config.forwardAll ? 'forwarding (test mode)' : 'keyword match',
-        )
-        notifier?.enqueue({
-          groupName,
-          sender,
-          keyword: config.forwardAll ? '' : hits.join(', '),
-          text,
-          mediaMsg: hasMedia(msg.message) ? msg : undefined,
-        })
       }
     },
   })

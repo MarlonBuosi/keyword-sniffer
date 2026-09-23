@@ -27,6 +27,13 @@ const FATAL_STATUS = new Set<number>([
 
 const VERSION_FETCH_TIMEOUT_MS = 10_000
 
+// Exit codes. Returning without exiting would leave a zombie process that PM2
+// still reports as "online" (the config watcher keeps the event loop alive).
+// EXIT_FATAL is listed in ecosystem.config.js `stop_exit_codes`, so PM2 stops
+// instead of restart-looping a dead session against WhatsApp.
+const EXIT_RETRY = 1
+const EXIT_FATAL = 2
+
 export type MessageUpsertHandler = (
   arg: BaileysEventMap['messages.upsert'],
   sock: WASocket,
@@ -132,15 +139,15 @@ export async function startSock(
           { statusCode },
           `unrecoverable close — delete the "${AUTH_DIR}" directory and restart to re-pair`,
         )
-        return
+        process.exit(EXIT_FATAL)
       }
 
       const nextAttempt = attempt + 1
       if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
         logger.error(
-          `gave up after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts — check network, then restart`,
+          `gave up after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts — exiting so PM2 restarts us`,
         )
-        return
+        process.exit(EXIT_RETRY)
       }
 
       const delay = Math.min(BASE_RECONNECT_MS * 2 ** attempt, MAX_RECONNECT_MS)
