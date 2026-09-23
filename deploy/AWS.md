@@ -167,10 +167,37 @@ All in the **São Paulo** region, in this order:
      ]
    }
    ```
-   Name it `deploy-only`. On the role's *Trust relationships* tab, the
-   condition should read
-   `"token.actions.githubusercontent.com:sub": "repo:MarlonBuosi/keyword-sniffer:ref:refs/heads/main"`.
-   Copy the role **ARN**.
+   Name it `deploy-only`.
+
+   **Fix the trust policy.** This repo uses GitHub's *immutable* OIDC
+   subject, which includes the owner and repo IDs, but the console's GitHub
+   fields generate the old name-only form, so logins fail with
+   `Not authorized to perform sts:AssumeRoleWithWebIdentity`. Check the
+   format with
+   `gh api repos/MarlonBuosi/keyword-sniffer/actions/oidc/customization/sub`
+   (`sub_claim_prefix`), then *Trust relationships* → *Edit trust policy*:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com"
+         },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+             "token.actions.githubusercontent.com:sub": "repo:MarlonBuosi@42485196/keyword-sniffer@1303178364:ref:refs/heads/main"
+           }
+         }
+       }
+     ]
+   }
+   ```
+   Pinning IDs is also safer: a re-created repo with the same name gets a
+   new ID and can't use this role. Copy the role **ARN**.
 5. **Repo variables** (not secrets — nothing here is sensitive):
    ```bash
    gh variable set AWS_DEPLOY_ROLE_ARN --body 'arn:aws:iam::<account>:role/gh-deploy-wa-monitor'
