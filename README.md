@@ -211,6 +211,8 @@ preferred.)
 | **"Waiting for this message" on your phone** | Signal session desync (often after repeated re-pairs). Fix: on your phone, clear the chat with the bot, then send it one message to rebuild a clean session. |
 | **515 right after pairing** | Expected — WhatsApp requires one reconnect after linking. The bot auto-reconnects. |
 | **Needs re-pair** | Delete `auth_state/` and restart to show a fresh QR. |
+| **`pm2 status` shows `stopped`** | The session was rejected (401/403/405) and the bot exited with code 2 so PM2 wouldn't restart-loop it. Re-pair as above. |
+| **Frequent restarts during outages** | Expected — after 6 failed reconnects (~2 min) the bot exits and PM2 restarts it fresh. |
 
 ---
 

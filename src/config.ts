@@ -46,8 +46,10 @@ export function validateConfig(input: unknown): AppConfig {
   }
 
   const keywords = c.keywords
-  if (!Array.isArray(keywords) || keywords.length === 0) {
-    errors.push('keywords must be a non-empty array')
+  // An empty list is valid: it just matches nothing (and `remove keyword` can
+  // legitimately produce it — rejecting it would brick the next startup).
+  if (!Array.isArray(keywords)) {
+    errors.push('keywords must be an array')
   } else if (!keywords.every((k) => typeof k === 'string' && k.trim().length > 0)) {
     errors.push('every keyword must be a non-empty string')
   }

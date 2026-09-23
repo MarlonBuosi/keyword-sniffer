@@ -12,6 +12,9 @@ module.exports = {
       autorestart: true,
       max_restarts: 20,
       restart_delay: 5000, // back off between crash restarts
+      // Exit code 2 = unrecoverable session (logged out / banned / rejected).
+      // Don't restart; re-pair manually. Code 1 (reconnects exhausted) restarts.
+      stop_exit_codes: [2],
       max_memory_restart: '300M',
       out_file: 'logs/pm2-out.log',
       error_file: 'logs/pm2-err.log',
