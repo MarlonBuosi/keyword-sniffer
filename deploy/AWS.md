@@ -115,11 +115,79 @@ journalctl -u wa-monitor -o cat -n 50 | /opt/wa-monitor/node_modules/.bin/pino-p
 - DM `list keywords` to the bot from the owner number → it replies.
 - `sudo reboot`, wait a minute → `systemctl status wa-monitor` is active again.
 
+## 7. Automatic deploys
+
+Merges to `main` deploy themselves: CI job `quality` → job `deploy`, which
+logs in to AWS with GitHub's OIDC token (no stored keys) and runs the SSM
+document `wa-monitor-deploy` → `deploy/update.sh <sha>` on the instance. The
+GitHub role can do nothing else: only that document, only on this instance,
+only from `main` of this repo.
+
+All in the **São Paulo** region, in this order:
+
+1. **Instance role** (lets the SSM agent on the server talk to AWS) —
+   IAM → *Roles* → *Create role* → *AWS service*, use case **EC2** → attach
+   **`AmazonSSMManagedInstanceCore`** → name `wa-monitor-ssm` → *Create*.
+   Then EC2 → select the instance → *Actions* → *Security* → *Modify IAM
+   role* → `wa-monitor-ssm` → *Update*.
+2. **SSM document** — Systems Manager → *Documents* → *Create document* →
+   *Command or Session*. Name **`wa-monitor-deploy`**, target type
+   `/AWS::EC2::Instance`, content **JSON**: paste
+   [`deploy/ssm/wa-monitor-deploy.json`](ssm/wa-monitor-deploy.json) →
+   *Create document*.
+3. **GitHub as an identity provider** — IAM → *Identity providers* → *Add
+   provider* → **OpenID Connect**; provider URL
+   `https://token.actions.githubusercontent.com`, audience
+   `sts.amazonaws.com` → *Add provider*.
+4. **Role for GitHub** — IAM → *Roles* → *Create role* → **Web identity** →
+   identity provider `token.actions.githubusercontent.com`, audience
+   `sts.amazonaws.com`, GitHub organization **`MarlonBuosi`**, repository
+   **`keyword-sniffer`**, branch **`main`** → *Next* → skip managed policies →
+   name **`gh-deploy-wa-monitor`** → *Create role*. Open the role →
+   *Add permissions* → *Create inline policy* → JSON:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "DeployOnly",
+         "Effect": "Allow",
+         "Action": "ssm:SendCommand",
+         "Resource": [
+           "arn:aws:ec2:sa-east-1:*:instance/i-0464201d495fd57a7",
+           "arn:aws:ssm:sa-east-1:*:document/wa-monitor-deploy"
+         ]
+       },
+       {
+         "Sid": "ReadResult",
+         "Effect": "Allow",
+         "Action": "ssm:GetCommandInvocation",
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+   Name it `deploy-only`. On the role's *Trust relationships* tab, the
+   condition should read
+   `"token.actions.githubusercontent.com:sub": "repo:MarlonBuosi/keyword-sniffer:ref:refs/heads/main"`.
+   Copy the role **ARN**.
+5. **Repo variables** (not secrets — nothing here is sensitive):
+   ```bash
+   gh variable set AWS_DEPLOY_ROLE_ARN --body 'arn:aws:iam::<account>:role/gh-deploy-wa-monitor'
+   gh variable set EC2_INSTANCE_ID --body 'i-0464201d495fd57a7'
+   ```
+
+Check: the instance shows as *Online* under Systems Manager → *Fleet
+Manager* (a few minutes after step 1; `sudo snap restart amazon-ssm-agent`
+speeds it up). Then *Actions* → *CI* → *Run workflow* on `main`.
+
 ## Day-to-day
 
 | Task | Command |
 |------|---------|
-| Deploy latest `main` | `ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'` |
+| Deploy | Merge to `main` (automatic, §7), or *Actions → CI → Run workflow* |
+| Deploy manually | `ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh'` (latest `main`) |
+| Roll back | `ssh wa-monitor 'sudo /opt/wa-monitor/deploy/update.sh <older-main-sha>'` |
 | Live logs | `ssh wa-monitor "journalctl -u wa-monitor -f -o cat \| /opt/wa-monitor/node_modules/.bin/pino-pretty"` |
 | Restart / stop | `ssh wa-monitor 'sudo systemctl restart wa-monitor'` (or `stop`) |
 | Edit keywords | DM the bot, or `sudo -u wa nano /var/lib/wa-monitor/config.json` (hot-reloaded) |

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy wa-monitor at a commit on main (runs deploy/update.sh). The only command GitHub Actions may run on the instance.",
+  "parameters": {
+    "commit": {
+      "type": "String",
+      "description": "Full 40-character commit SHA on main",
+      "allowedPattern": "^[0-9a-f]{40}$"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deploy",
+      "inputs": {
+        "timeoutSeconds": "900",
+        "runCommand": ["/opt/wa-monitor/deploy/update.sh {{ commit }}"]
+      }
+    }
+  ]
+}

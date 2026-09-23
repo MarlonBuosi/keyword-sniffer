@@ -77,17 +77,15 @@ When Biome lands, add `npx biome ci src` to the `quality` job.
 
 ---
 
-## Automatic Deploys (GitHub Actions → AWS SSM)
+## ~~Automatic Deploys (GitHub Actions → AWS SSM)~~ — done
 
-**Goal:** a merge to `main` deploys by itself, only after `quality` passes.
+Merges to `main` deploy after CI passes: job `deploy` → OIDC → SSM document
+`wa-monitor-deploy` → `deploy/update.sh <sha>` (isolated build, swap, restart,
+reconnect check). `main` is protected with `quality` required (admin bypass).
+See [deploy/AWS.md §7](deploy/AWS.md#7-automatic-deploys).
 
-- Add a `deploy` job to `ci.yml`: `needs: quality`, only on `push` to `main`.
-- Authenticate with **GitHub OIDC** (no stored AWS keys); IAM role trust
-  limited to `repo:MarlonBuosi/keyword-sniffer:ref:refs/heads/main`, permission
-  limited to `ssm:SendCommand` on this instance.
-- Run `sudo /opt/wa-monitor/deploy/update.sh` via SSM Run Command (the SSM
-  agent ships with Ubuntu AMIs; the instance needs a role with
-  `AmazonSSMManagedInstanceCore`). No inbound ports, no SSH key in GitHub.
-- First make `update.sh` build before swapping, so a failed build never
-  replaces the running version.
-- Afterwards SSH (port 22) can be closed entirely — SSM also provides a shell.
+Possible follow-ups:
+- **Close SSH (port 22)** — SSM Session Manager provides a shell from the AWS
+  console, so the security-group rule could go.
+- **Automatic rollback** — `update.sh` fails the run and prints the rollback
+  command; it could redeploy the previous SHA by itself instead.
