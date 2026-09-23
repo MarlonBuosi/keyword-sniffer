@@ -81,7 +81,8 @@ When Biome lands, add `npx biome ci src` to the `quality` job.
 
 Merges to `main` deploy after CI passes: job `deploy` → OIDC → SSM document
 `wa-monitor-deploy` → `deploy/update.sh <sha>` (isolated build, swap, restart,
-reconnect check). `main` is protected with `quality` required (admin bypass).
+reconnect check). The role trusts GitHub's immutable OIDC subject
+(owner/repo IDs + `refs/heads/main`). `main` is protected with `quality` required (admin bypass).
 See [deploy/AWS.md §7](deploy/AWS.md#7-automatic-deploys).
 
 Possible follow-ups:
