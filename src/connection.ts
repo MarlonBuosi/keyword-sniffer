@@ -9,7 +9,7 @@ import qrcode from 'qrcode-terminal'
 import type { Logger } from 'pino'
 import { recall } from './store'
 
-const AUTH_DIR = 'auth_state'
+const AUTH_DIR = process.env.AUTH_DIR ?? 'auth_state' // overridable, like CONFIG_PATH
 
 // Reconnect backoff: never hammer WhatsApp (rapid retry storms read as robotic
 // and are bad for ban risk). Exponential from 2s up to 60s, capped attempts.
@@ -27,12 +27,18 @@ const FATAL_STATUS = new Set<number>([
 
 const VERSION_FETCH_TIMEOUT_MS = 10_000
 
-// Exit codes. Returning without exiting would leave a zombie process that PM2
-// still reports as "online" (the config watcher keeps the event loop alive).
-// EXIT_FATAL is listed in ecosystem.config.js `stop_exit_codes`, so PM2 stops
-// instead of restart-looping a dead session against WhatsApp.
+// Exit codes. Returning without exiting would leave a zombie process that the
+// supervisor still reports as running (the config watcher keeps the event loop
+// alive). EXIT_FATAL is listed in deploy/wa-monitor.service
+// `RestartPreventExitStatus`, so systemd stays down instead of restart-looping
+// a dead session against WhatsApp.
 const EXIT_RETRY = 1
 const EXIT_FATAL = 2
+
+// Headless pairing: when set to the bot's phone number (digits only, with
+// country code), an unpaired session requests an 8-character pairing code to
+// type on the phone instead of rendering a QR.
+const PAIR_PHONE = process.env.PAIR_PHONE?.trim() || undefined
 
 export type MessageUpsertHandler = (
   arg: BaileysEventMap['messages.upsert'],
@@ -58,7 +64,8 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 
 /**
  * Opens a Baileys socket with a persistent multi-file auth session.
- * - Renders the pairing QR manually from the connection.update `qr` field.
+ * - Pairs via QR (rendered from the connection.update `qr` field) or, when
+ *   PAIR_PHONE is set, via a pairing code.
  * - Reconnects with exponential backoff on transient closes.
  * - Stops (and asks for a re-pair) on fatal statuses or too many attempts.
  * - Re-registers the same message handler across reconnects.
@@ -73,7 +80,27 @@ export async function startSock(
   const waLogger = logger.child({ mod: 'baileys' })
   waLogger.level = 'warn'
 
+  if (PAIR_PHONE !== undefined && !/^\d{10,15}$/.test(PAIR_PHONE)) {
+    logger.error(
+      'PAIR_PHONE must be the bot number as digits only, with country code (e.g. 5511912345678)',
+    )
+    process.exit(EXIT_FATAL)
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+
+  // requestPairingCode() persists `creds.me`, and Baileys sends a *login*
+  // (not a registration) whenever `me` is set. If a previous socket requested
+  // a code that was never entered, the next connect would log in as a device
+  // that doesn't exist, get a 401, and exit fatally — instead of emitting a QR
+  // event and requesting a fresh code. A completed pairing sets `registered`
+  // (code flow) or `account` (QR flow), so `me` without either is leftover.
+  if (PAIR_PHONE && state.creds.me && !state.creds.registered && !state.creds.account) {
+    logger.info('discarding unfinished pairing attempt; a new code will be requested')
+    state.creds.me = undefined
+    state.creds.pairingCode = undefined
+    await saveCreds()
+  }
 
   // The WA-web version bundled with 6.7.23 (Nov 2025) is now rejected by
   // WhatsApp's servers with a 405 before pairing. fetchLatestBaileysVersion()
@@ -112,10 +139,27 @@ export async function startSock(
 
   sock.ev.on('creds.update', saveCreds)
 
+  let pairingRequested = false
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update
 
-    if (qr) {
+    // The first `qr` event means the socket is ready to pair. With PAIR_PHONE,
+    // request one code per socket; if it expires, the reconnect path opens a
+    // new socket and a fresh code is requested.
+    if (qr && PAIR_PHONE && !state.creds.registered) {
+      if (!pairingRequested) {
+        pairingRequested = true
+        sock.requestPairingCode(PAIR_PHONE).then(
+          (code) =>
+            logger.info(
+              { pairingCode: code },
+              `PAIRING CODE: ${code} — on the bot phone: WhatsApp > Linked Devices > Link a Device > Link with phone number`,
+            ),
+          (err) => logger.error({ err }, 'failed to request pairing code'),
+        )
+      }
+    } else if (qr) {
       logger.info('scan this QR with the bot number (WhatsApp > Linked Devices)')
       qrcode.generate(qr, { small: true })
     }
@@ -145,7 +189,7 @@ export async function startSock(
       const nextAttempt = attempt + 1
       if (nextAttempt > MAX_RECONNECT_ATTEMPTS) {
         logger.error(
-          `gave up after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts — exiting so PM2 restarts us`,
+          `gave up after ${MAX_RECONNECT_ATTEMPTS} reconnect attempts — exiting so the supervisor restarts us`,
         )
         process.exit(EXIT_RETRY)
       }
