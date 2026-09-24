@@ -23,9 +23,11 @@ Environment=NODE_ENV=production
 # writable, so editors' atomic saves of config.json reach the running service.
 Environment=AUTH_DIR=/var/lib/wa-monitor/auth_state
 Environment=CONFIG_PATH=/var/lib/wa-monitor/config.json
+# Sent messages, kept so decrypt-retry resends work across restarts.
+Environment=SENT_STORE_PATH=/var/lib/wa-monitor/sent-messages.json
 StateDirectory=wa-monitor
 StateDirectoryMode=0700
-# LOG_LEVEL, PAIR_PHONE (optional)
+# LOG_LEVEL, BAILEYS_LOG_LEVEL, PAIR_PHONE (optional)
 EnvironmentFile=-/etc/wa-monitor.env
 ExecStart=/usr/bin/node dist/index.js
 
