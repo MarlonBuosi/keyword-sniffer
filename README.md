@@ -24,7 +24,8 @@ WhatsApp Web protocol) and TypeScript, deployed to AWS EC2 under systemd.
   (bulk supported); changes apply instantly, no restart.
 - **Config hot-reload** — edit `config.json` and it's picked up live.
 - **Resilient** — auto-reconnects with backoff, persists its session across
-  restarts, and honors decrypt-retry requests so messages aren't lost.
+  restarts, and answers decrypt-retry requests from a sent-message store kept
+  on disk (see the "Waiting for this message" note in Troubleshooting).
 - **Runs unattended** — systemd service on a small EC2 instance (restart on crash, start on boot).
 
 ---
@@ -35,8 +36,10 @@ WhatsApp Web protocol) and TypeScript, deployed to AWS EC2 under systemd.
 WhatsApp groups ──▶ Baileys client ──▶ filter ──▶ notifier ──▶ your DM
                     (connection.ts)   (filter.ts) (notifier.ts)
                           │
-                    auth_state/  +  config.json
-                    (session)       (groups, keywords, owner)
+            auth_state/  +  config.json  +  sent-messages.json
+            (session)       (groups,        (recent sends, for
+                             keywords,       decrypt-retry resends)
+                             owner)
 ```
 
 Per incoming message the pipeline: skips non-monitored chats and the bot's own
@@ -56,14 +59,14 @@ to the owner.
 | `src/filter.ts` | Text extraction, accent normalization, keyword matching |
 | `src/notifier.ts` | Jittered alert queue, formatting, media re-send |
 | `src/commands.ts` | Owner DM commands (help / list / add / remove) |
-| `src/store.ts` | Cache of sent messages for decrypt-retry resends |
+| `src/store.ts` | Sent-message store on disk (last 500) for decrypt-retry resends |
 | `src/log-filter.ts` | Silences noisy libsignal `console` output |
 
 ---
 
 ## Prerequisites
 
-- **Node.js ≥ 18** (developed on 24.x)
+- **Node.js ≥ 22.12** (Baileys needs ≥ 20, Vitest ≥ 22.12; the server and CI run 24.x)
 - A **dedicated/secondary WhatsApp number** for the bot (see [Safety & ToS](#safety--tos))
 - The bot number must be a **member of the groups** you want to monitor
 
@@ -72,8 +75,8 @@ to the owner.
 ## Setup
 
 ```bash
-git clone <your-repo-url> whatsapp-keyword-monitor
-cd whatsapp-keyword-monitor
+git clone https://github.com/MarlonBuosi/keyword-sniffer.git
+cd keyword-sniffer
 npm install
 
 # create your config from the template
@@ -107,11 +110,11 @@ cp config.example.json config.json
 | `forwardAll` | **Test mode:** forward every message, ignore keywords. Ban-risky; keep brief. |
 | `forwardAllLimit` | Safety cap: `forwardAll` auto-stops after this many sends. |
 
-> **Finding group JIDs:** on first run the bot logs every group it belongs to
-> (name + JID) — copy the ones you want into `monitoredGroups`.
+> **Checking group JIDs:** on startup the bot logs the name of each group in
+> `monitoredGroups`, or a warning if the bot number isn't a member of it.
 
-`config.json`, `auth_state/`, `logs/`, and `dist/` are gitignored — no secrets
-or session data are committed.
+`config.json`, `auth_state/`, `sent-messages.json`, `.env`, and `dist/` are
+gitignored — no secrets or session data are committed.
 
 ---
 
@@ -184,10 +187,12 @@ systemctl status wa-monitor                  # running? last exit status?
 sudo systemctl restart wa-monitor            # or stop / start
 journalctl -u wa-monitor -f -o cat | /opt/wa-monitor/node_modules/.bin/pino-pretty   # live logs
 ```
-Code is in `/opt/wa-monitor`; state (`config.json`, `auth_state/`) is in
-`/var/lib/wa-monitor` (set via the `CONFIG_PATH` / `AUTH_DIR` env vars in the
-unit). Service settings (e.g. `LOG_LEVEL`, `PAIR_PHONE`) live in
-`/etc/wa-monitor.env`. More in [deploy/AWS.md](deploy/AWS.md#day-to-day).
+Code is in `/opt/wa-monitor`; state (`config.json`, `auth_state/`,
+`sent-messages.json`) is in `/var/lib/wa-monitor`, set via the `CONFIG_PATH` /
+`AUTH_DIR` / `SENT_STORE_PATH` env vars in the unit (locally they default to
+the working directory). Optional settings live in `/etc/wa-monitor.env`:
+`LOG_LEVEL`, `BAILEYS_LOG_LEVEL` (e.g. `debug` while troubleshooting),
+`PAIR_PHONE` (only while pairing). More in [deploy/AWS.md](deploy/AWS.md#day-to-day).
 
 ### Session backup
 `auth_state/` is the WhatsApp session — back it up so a disk loss means a
@@ -212,7 +217,7 @@ active.
 | **405 before any QR** | The version bundled with Baileys is rejected by WhatsApp. The bot uses `fetchLatestBaileysVersion()` to avoid this — keep it. |
 | **408 `unexpected error in 'init queries'`** | Benign — one auxiliary post-connect query timing out. The connection stays up; ignore. |
 | **`failed to decrypt message` (groups)** | Normal right after joining/linking — the device lacks some senders' group keys yet. Tapers off as senders re-send; keep the bot connected. |
-| **"Waiting for this message" on your phone** | Your phone couldn't decrypt an alert and asked the bot to resend it. The bot keeps its last 500 sent messages on disk (`SENT_STORE_PATH`), so resends work across restarts and deploys. Check what happened: `journalctl -u wa-monitor -o cat \| grep "resend requested"`: `found: true` means it was resent; `not in store` means it was too old or sent before this fix. If it keeps happening with no resend requests logged, the Signal session is out of sync (often after repeated re-pairs): on your phone, clear the chat with the bot, then send it one message. |
+| **"Waiting for this message" on your phone** | Your phone couldn't decrypt a message from the bot and asked it to resend. The bot keeps its last 500 sent messages on disk, so it can answer across restarts; check with `journalctl -u wa-monitor -o cat \| grep "resend requested"` (`found: true` = resent). **Known limitation:** when your account uses WhatsApp's newer LID addressing (resend requests come from `…@lid`), some messages stay stuck even after a successful resend — an open Baileys issue ([#1767](https://github.com/WhiskeySockets/Baileys/issues/1767), [#2297](https://github.com/WhiskeySockets/Baileys/issues/2297)), mostly affecting iPhones. If a chat gets bad, clear the chat with the bot on your phone and send it one message to reset the session. |
 | **515 right after pairing** | Expected — WhatsApp requires one reconnect after linking. The bot auto-reconnects. |
 | **Needs re-pair** | Delete the contents of `auth_state/` and restart to pair again (QR, or code with `PAIR_PHONE`). On the server, see [deploy/AWS.md](deploy/AWS.md#day-to-day). |
 | **`systemctl status` shows `failed` with `status=2`** | The session was rejected (401/403/405) and the bot exited with code 2, which the unit is configured not to restart (`RestartPreventExitStatus=2`). Re-pair as above. |
@@ -237,4 +242,5 @@ For personal/educational use. You are responsible for how you use it.
 
 ## Tech stack
 
-TypeScript · [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `6.7.23` · pino · systemd on AWS EC2
+TypeScript · [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys) `6.7.23` · pino · Vitest ·
+GitHub Actions (CI + OIDC → AWS SSM deploys) · systemd on AWS EC2
