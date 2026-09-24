@@ -8,7 +8,7 @@ import { loadConfig, saveConfig, watchConfig, type AppConfig } from './config'
 import { extractText, matchKeywords, hasMedia } from './filter'
 import { handleCommand } from './commands'
 import { Notifier } from './notifier'
-import { remember } from './store'
+import { initStore, remember } from './store'
 import { isFromOwner, jidUser } from './jid'
 
 const isProd = process.env.NODE_ENV === 'production'
@@ -153,6 +153,9 @@ async function main() {
         `Ban-risky for the bot number — auto-stops after ${config.forwardAllLimit} sends.`,
     )
   }
+
+  // Sent messages survive restarts so decrypt-retry resends keep working.
+  initStore(process.env.SENT_STORE_PATH ?? 'sent-messages.json', logger)
 
   // Hot-reload: edits to config.json take effect live.
   watchConfig(applyConfig, logger)

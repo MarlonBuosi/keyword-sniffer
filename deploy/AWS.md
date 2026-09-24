@@ -218,6 +218,8 @@ speeds it up). Then *Actions* → *CI* → *Run workflow* on `main`.
 | Live logs | `ssh wa-monitor "journalctl -u wa-monitor -f -o cat \| /opt/wa-monitor/node_modules/.bin/pino-pretty"` |
 | Restart / stop | `ssh wa-monitor 'sudo systemctl restart wa-monitor'` (or `stop`) |
 | Edit keywords | DM the bot, or `sudo -u wa nano /var/lib/wa-monitor/config.json` (hot-reloaded) |
+| Debug Baileys internals | Add `BAILEYS_LOG_LEVEL=debug` to `/etc/wa-monitor.env`, `sudo systemctl restart wa-monitor`; remove it when done (verbose) |
+| Resend requests ("Waiting for this message") | `ssh wa-monitor "journalctl -u wa-monitor -o cat \| grep 'resend requested'"` |
 | OS updates | `ssh wa-monitor 'sudo apt-get update && sudo apt-get -y upgrade'` (Ubuntu also installs security updates automatically) |
 
 **`failed` with `status=2`** means WhatsApp rejected the session (logged out /

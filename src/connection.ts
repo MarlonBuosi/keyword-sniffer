@@ -38,6 +38,15 @@ export interface SockHandlers {
   onMessage?: MessageUpsertHandler
 }
 
+/** BAILEYS_LOG_LEVEL if it's a valid pino level, else 'warn' (never crash on a typo). */
+function baileysLogLevel(logger: Logger): string {
+  const wanted = process.env.BAILEYS_LOG_LEVEL?.trim()
+  if (!wanted) return 'warn'
+  if (wanted in logger.levels.values) return wanted
+  logger.warn({ BAILEYS_LOG_LEVEL: wanted }, 'invalid BAILEYS_LOG_LEVEL; using warn')
+  return 'warn'
+}
+
 /** Reject after `ms` so a hung network call can't stall startup silently. */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -63,8 +72,9 @@ export async function startSock(
 ): Promise<WASocket> {
   // Baileys is extremely chatty at info/debug; give it its own quiet child so it
   // doesn't drown out our own status lines, which stay on the app `logger`.
+  // BAILEYS_LOG_LEVEL=debug shows its retry/decrypt internals when debugging.
   const waLogger = logger.child({ mod: 'baileys' })
-  waLogger.level = 'warn'
+  waLogger.level = baileysLogLevel(logger)
 
   if (PAIR_PHONE !== undefined && !isValidPairPhone(PAIR_PHONE)) {
     logger.error(
@@ -119,7 +129,15 @@ export async function startSock(
     // Resend support: when a recipient can't decrypt a message and asks for a
     // resend, Baileys calls this to re-encrypt the original. Without it the
     // recipient is stuck on "Waiting for this message…".
-    getMessage: async (key) => (key.id ? recall(key.id) : undefined),
+    // Baileys calls this only to answer a retry request, so each call is
+    // logged: `found: false` means the recipient stays on "Waiting…".
+    getMessage: async (key) => {
+      const message = key.id ? recall(key.id) : undefined
+      const info = { id: key.id, remoteJid: key.remoteJid, participant: key.participant, found: !!message }
+      if (message) logger.info(info, 'resend requested')
+      else logger.warn(info, 'resend requested, but message not in store')
+      return message
+    },
   })
 
   sock.ev.on('creds.update', saveCreds)
