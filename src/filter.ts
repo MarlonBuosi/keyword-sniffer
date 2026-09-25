@@ -45,16 +45,44 @@ export function normalize(s: string): string {
 }
 
 /**
- * Return the keywords (original spelling) found in `text`, using a normalized
- * substring match. Empty array = no match.
+ * The form a keyword is compared in: normalized, trimmed, inner whitespace
+ * collapsed. Keywords with the same key match exactly the same messages, so
+ * this is also the duplicate check for the DM commands.
+ */
+export const keywordKey = (kw: string): string => normalize(kw).trim().replace(/\s+/g, ' ')
+
+// What counts as "inside a word" for keyword boundaries: letters, digits, and
+// marks (vowel signs in e.g. Thai or Devanagari, which normalize() keeps).
+const WORD_CHAR = '[\\p{L}\\p{M}\\p{N}]'
+const STARTS_WITH_WORD_CHAR = new RegExp(`^${WORD_CHAR}`, 'u')
+const ENDS_WITH_WORD_CHAR = new RegExp(`${WORD_CHAR}$`, 'u')
+
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+
+/**
+ * Whole-word pattern for a non-empty keyword key: "raquete" matches "vendo
+ * raquete!" but not "raqueteira" or "raquetes". The boundary is only enforced
+ * on an edge that is itself a word character, so "50%" still matches "50%off".
+ * Spaces inside a keyword match any run of whitespace.
+ */
+function wordPattern(key: string): RegExp {
+  const body = key.split(' ').map(escapeRegExp).join('\\s+')
+  const start = STARTS_WITH_WORD_CHAR.test(key) ? `(?<!${WORD_CHAR})` : ''
+  const end = ENDS_WITH_WORD_CHAR.test(key) ? `(?!${WORD_CHAR})` : ''
+  return new RegExp(start + body + end, 'u')
+}
+
+/**
+ * Return the keywords (original spelling) found in `text` as whole words,
+ * after normalizing both sides. Empty array = no match.
  */
 export function matchKeywords(text: string, keywords: string[]): string[] {
   const haystack = normalize(text)
   if (!haystack) return []
   const hits: string[] = []
   for (const kw of keywords) {
-    const needle = normalize(kw)
-    if (needle && haystack.includes(needle)) hits.push(kw)
+    const key = keywordKey(kw)
+    if (key && wordPattern(key).test(haystack)) hits.push(kw)
   }
   return hits
 }
