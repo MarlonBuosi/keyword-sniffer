@@ -17,6 +17,8 @@ WhatsApp Web protocol) and TypeScript, deployed to AWS EC2 under systemd.
 - **Monitors specific groups only** — ignores every other chat.
 - **Accent- & case-insensitive matching** — `promoção` also matches `promocao`,
   `PROMOÇÃO`, etc. (built for Portuguese).
+- **Whole-word matching** — `raquete` matches "vendo raquete!" but not
+  `raqueteira` or `raquetes`; add plurals/variants as their own keywords.
 - **DM delivery to your own number** — matches arrive as a formatted alert.
 - **Media matches come through intact** — an image/video/PDF match is delivered
   as a single message (the media + a caption with the context and text).
@@ -104,7 +106,7 @@ cp config.example.json config.json
 | Field | Meaning |
 |-------|---------|
 | `monitoredGroups` | Group JIDs to watch (each ends in `@g.us`). |
-| `keywords` | Terms to match (case/accent-insensitive substring match). |
+| `keywords` | Terms to match as whole words (case/accent-insensitive). |
 | `ownerJid` | Your personal number as `<countrycode><number>@s.whatsapp.net`. |
 | `sendDelayMs` | Random delay range between DMs (jitter — keeps sends human-like). |
 | `forwardAll` | **Test mode:** forward every message, ignore keywords. Ban-risky; keep brief. |

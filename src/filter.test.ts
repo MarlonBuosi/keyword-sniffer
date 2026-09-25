@@ -19,9 +19,43 @@ describe('matchKeywords', () => {
     expect(matchKeywords('Grande PROMOCAO hoje', keywords)).toEqual(['promoção'])
   })
 
-  it('matches substrings and multi-word keywords', () => {
+  it('matches whole words only, not words that contain the keyword', () => {
+    for (const text of ['raquete', 'Vendo RAQUETE!', 'nova raquete.', '(raquete)', 'raquete🎾', 'x\nraquete\ny']) {
+      expect(matchKeywords(text, ['raquete'])).toEqual(['raquete'])
+    }
+    for (const text of ['raqueteira', 'raquetes', 'minirraquete', 'raquete2']) {
+      expect(matchKeywords(text, ['raquete'])).toEqual([])
+    }
+    expect(matchKeywords('bolas de tênis', keywords)).toEqual([])
+  })
+
+  it('matches multi-word keywords across any whitespace, still as whole words', () => {
     expect(matchKeywords('raquete head yonex nova', keywords)).toEqual(['Head Yonex'])
-    expect(matchKeywords('bolas de tênis', keywords)).toEqual(['bola'])
+    expect(matchKeywords('head  yonex', keywords)).toEqual(['Head Yonex'])
+    expect(matchKeywords('head\nyonex', keywords)).toEqual(['Head Yonex'])
+    expect(matchKeywords('headyonex', keywords)).toEqual([])
+    expect(matchKeywords('head yonexx', keywords)).toEqual([])
+  })
+
+  it('treats digits as part of a word', () => {
+    expect(matchKeywords('iphone 15 pro', ['iphone 15'])).toEqual(['iphone 15'])
+    expect(matchKeywords('iphone 150', ['iphone 15'])).toEqual([])
+  })
+
+  it('only enforces a boundary on keyword edges that are letters or digits', () => {
+    expect(matchKeywords('desconto de 50% hoje', ['50%'])).toEqual(['50%'])
+    expect(matchKeywords('50%off', ['50%'])).toEqual(['50%'])
+    expect(matchKeywords('150%', ['50%'])).toEqual([])
+  })
+
+  it('treats regex characters in keywords literally', () => {
+    expect(matchKeywords('versão 3.0 chegou', ['3.0'])).toEqual(['3.0'])
+    expect(matchKeywords('versão 3x0 chegou', ['3.0'])).toEqual([])
+    expect(matchKeywords('c++ (novo)', ['c++', '(novo)'])).toEqual(['c++', '(novo)'])
+  })
+
+  it('ignores surrounding whitespace in a keyword', () => {
+    expect(matchKeywords('bola nova', [' bola '])).toEqual([' bola '])
   })
 
   it('returns every hit in keyword order', () => {

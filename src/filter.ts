@@ -44,17 +44,37 @@ export function normalize(s: string): string {
     .toLowerCase()
 }
 
+/** Letters and digits: what counts as "inside a word" for keyword boundaries. */
+const WORD_CHAR = /[\p{L}\p{N}]/u
+const NOT_AFTER_WORD = '(?<![\\p{L}\\p{N}])'
+const NOT_BEFORE_WORD = '(?![\\p{L}\\p{N}])'
+
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+
 /**
- * Return the keywords (original spelling) found in `text`, using a normalized
- * substring match. Empty array = no match.
+ * Whole-word pattern for a normalized, non-empty keyword: "raquete" matches
+ * "vendo raquete!" but not "raqueteira" or "raquetes". The boundary is only
+ * enforced on an edge that is itself a letter/digit, so "50%" still matches
+ * "50%off". Spaces inside a keyword match any run of whitespace.
+ */
+function wordPattern(needle: string): RegExp {
+  const body = needle.split(/\s+/).map(escapeRegExp).join('\\s+')
+  const start = WORD_CHAR.test(needle[0]) ? NOT_AFTER_WORD : ''
+  const end = WORD_CHAR.test(needle[needle.length - 1]) ? NOT_BEFORE_WORD : ''
+  return new RegExp(start + body + end, 'u')
+}
+
+/**
+ * Return the keywords (original spelling) found in `text` as whole words,
+ * after normalizing both sides. Empty array = no match.
  */
 export function matchKeywords(text: string, keywords: string[]): string[] {
   const haystack = normalize(text)
   if (!haystack) return []
   const hits: string[] = []
   for (const kw of keywords) {
-    const needle = normalize(kw)
-    if (needle && haystack.includes(needle)) hits.push(kw)
+    const needle = normalize(kw).trim()
+    if (needle && wordPattern(needle).test(haystack)) hits.push(kw)
   }
   return hits
 }
