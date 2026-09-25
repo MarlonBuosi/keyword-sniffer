@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WAMessageContent } from '@whiskeysockets/baileys'
-import { extractText, hasMedia, matchKeywords, normalize } from './filter'
+import { extractText, hasMedia, keywordKey, matchKeywords, normalize } from './filter'
 
 const msg = (m: object) => m as WAMessageContent
 
@@ -9,6 +9,13 @@ describe('normalize', () => {
     expect(normalize('Promoção')).toBe('promocao')
     expect(normalize('PROMOÇÃO')).toBe('promocao')
     expect(normalize('Raquete Têniş')).toBe('raquete tenis')
+  })
+})
+
+describe('keywordKey', () => {
+  it('normalizes, trims, and collapses inner whitespace', () => {
+    expect(keywordKey('  Promoção ')).toBe('promocao')
+    expect(keywordKey('Head \n  Yonex')).toBe('head yonex')
   })
 })
 
@@ -52,6 +59,15 @@ describe('matchKeywords', () => {
     // 𝐫 (U+1D42B) is a letter encoded as a surrogate pair
     expect(matchKeywords('abc𝐫xyz', ['𝐫'])).toEqual([])
     expect(matchKeywords('a 𝐫 b', ['𝐫'])).toEqual(['𝐫'])
+  })
+
+  it('treats marks that normalize() keeps as part of a word', () => {
+    // Thai: ไม้ ends in a tone mark; either way เทนนิส is glued to another word
+    expect(matchKeywords('ขายเทนนิส', ['เทนนิส'])).toEqual([])
+    expect(matchKeywords('ขายไม้เทนนิส', ['เทนนิส'])).toEqual([])
+    expect(matchKeywords('ขาย เทนนิส', ['เทนนิส'])).toEqual(['เทนนิส'])
+    // Devanagari: की ends in a vowel sign, so its end boundary is enforced
+    expect(matchKeywords('कीमत', ['की'])).toEqual([])
   })
 
   it('treats regex characters in keywords literally', () => {

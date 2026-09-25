@@ -1,5 +1,6 @@
 import type { WASocket } from '@whiskeysockets/baileys'
 import type { Logger } from 'pino'
+import { keywordKey } from './filter'
 
 export interface CommandContext {
   sock: WASocket
@@ -18,6 +19,7 @@ const HELP = [
   '• remove keyword <text>[, <text>, …]',
   '',
   'Separate multiple keywords with commas or new lines.',
+  'Keywords match whole words only ("raquete" won\'t match "raquetes"), so add variants separately.',
 ].join('\n')
 
 /** Split a command argument into keywords on commas/newlines; trims + drops empties. */
@@ -61,12 +63,12 @@ export async function handleCommand(text: string, ctx: CommandContext): Promise<
       return
     }
     const current = ctx.getKeywords()
-    const seen = new Set(current.map((k) => k.toLowerCase()))
+    const seen = new Set(current.map(keywordKey))
     const next = [...current]
     const added: string[] = []
     const skipped: string[] = []
     for (const kw of requested) {
-      const key = kw.toLowerCase()
+      const key = keywordKey(kw)
       if (seen.has(key)) {
         skipped.push(kw)
         continue
@@ -95,12 +97,11 @@ export async function handleCommand(text: string, ctx: CommandContext): Promise<
       return
     }
     const current = ctx.getKeywords()
-    const requestedLower = new Set(requested.map((k) => k.toLowerCase()))
-    const removed = current.filter((k) => requestedLower.has(k.toLowerCase()))
-    const next = current.filter((k) => !requestedLower.has(k.toLowerCase()))
-    const notFound = requested.filter(
-      (r) => !current.some((k) => k.toLowerCase() === r.toLowerCase()),
-    )
+    const requestedKeys = new Set(requested.map(keywordKey))
+    const currentKeys = new Set(current.map(keywordKey))
+    const removed = current.filter((k) => requestedKeys.has(keywordKey(k)))
+    const next = current.filter((k) => !requestedKeys.has(keywordKey(k)))
+    const notFound = requested.filter((r) => !currentKeys.has(keywordKey(r)))
     if (removed.length > 0) {
       ctx.setKeywords(next)
       ctx.logger.info({ removed }, 'keywords removed via DM command')

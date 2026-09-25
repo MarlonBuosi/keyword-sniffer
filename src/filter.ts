@@ -44,24 +44,31 @@ export function normalize(s: string): string {
     .toLowerCase()
 }
 
-/** Letters and digits: what counts as "inside a word" for keyword boundaries. */
-const WORD_CHAR = /[\p{L}\p{N}]/u
-const NOT_AFTER_WORD = '(?<![\\p{L}\\p{N}])'
-const NOT_BEFORE_WORD = '(?![\\p{L}\\p{N}])'
+/**
+ * The form a keyword is compared in: normalized, trimmed, inner whitespace
+ * collapsed. Keywords with the same key match exactly the same messages, so
+ * this is also the duplicate check for the DM commands.
+ */
+export const keywordKey = (kw: string): string => normalize(kw).trim().replace(/\s+/g, ' ')
+
+// What counts as "inside a word" for keyword boundaries: letters, digits, and
+// marks (vowel signs in e.g. Thai or Devanagari, which normalize() keeps).
+const WORD_CHAR = '[\\p{L}\\p{M}\\p{N}]'
+const STARTS_WITH_WORD_CHAR = new RegExp(`^${WORD_CHAR}`, 'u')
+const ENDS_WITH_WORD_CHAR = new RegExp(`${WORD_CHAR}$`, 'u')
 
 const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
 
 /**
- * Whole-word pattern for a normalized, non-empty keyword: "raquete" matches
- * "vendo raquete!" but not "raqueteira" or "raquetes". The boundary is only
- * enforced on an edge that is itself a letter/digit, so "50%" still matches
- * "50%off". Spaces inside a keyword match any run of whitespace.
+ * Whole-word pattern for a non-empty keyword key: "raquete" matches "vendo
+ * raquete!" but not "raqueteira" or "raquetes". The boundary is only enforced
+ * on an edge that is itself a word character, so "50%" still matches "50%off".
+ * Spaces inside a keyword match any run of whitespace.
  */
-function wordPattern(needle: string): RegExp {
-  const body = needle.split(/\s+/).map(escapeRegExp).join('\\s+')
-  const chars = Array.from(needle) // code points: don't split an astral letter at an edge
-  const start = WORD_CHAR.test(chars[0]) ? NOT_AFTER_WORD : ''
-  const end = WORD_CHAR.test(chars[chars.length - 1]) ? NOT_BEFORE_WORD : ''
+function wordPattern(key: string): RegExp {
+  const body = key.split(' ').map(escapeRegExp).join('\\s+')
+  const start = STARTS_WITH_WORD_CHAR.test(key) ? `(?<!${WORD_CHAR})` : ''
+  const end = ENDS_WITH_WORD_CHAR.test(key) ? `(?!${WORD_CHAR})` : ''
   return new RegExp(start + body + end, 'u')
 }
 
@@ -74,8 +81,8 @@ export function matchKeywords(text: string, keywords: string[]): string[] {
   if (!haystack) return []
   const hits: string[] = []
   for (const kw of keywords) {
-    const needle = normalize(kw).trim()
-    if (needle && wordPattern(needle).test(haystack)) hits.push(kw)
+    const key = keywordKey(kw)
+    if (key && wordPattern(key).test(haystack)) hits.push(kw)
   }
   return hits
 }

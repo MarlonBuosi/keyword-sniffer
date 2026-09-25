@@ -176,6 +176,9 @@ From your **owner** number, DM the bot:
 
 Changes are written to `config.json` and applied live (no restart). Multi-word
 keywords are fine (e.g. `beach tennis`); only commas/newlines separate entries.
+Keywords match whole words, so add plurals/variants as separate entries. `add`
+and `remove` ignore case, accents and extra spaces (`promocao` is the same
+keyword as `promoção`).
 
 You can also just edit `config.json` directly — the bot hot-reloads it.
 
