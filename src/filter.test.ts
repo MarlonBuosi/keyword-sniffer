@@ -48,6 +48,12 @@ describe('matchKeywords', () => {
     expect(matchKeywords('150%', ['50%'])).toEqual([])
   })
 
+  it('enforces boundaries for keywords whose edges are astral-plane letters', () => {
+    // 𝐫 (U+1D42B) is a letter encoded as a surrogate pair
+    expect(matchKeywords('abc𝐫xyz', ['𝐫'])).toEqual([])
+    expect(matchKeywords('a 𝐫 b', ['𝐫'])).toEqual(['𝐫'])
+  })
+
   it('treats regex characters in keywords literally', () => {
     expect(matchKeywords('versão 3.0 chegou', ['3.0'])).toEqual(['3.0'])
     expect(matchKeywords('versão 3x0 chegou', ['3.0'])).toEqual([])

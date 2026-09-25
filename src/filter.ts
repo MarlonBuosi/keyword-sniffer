@@ -59,8 +59,9 @@ const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
  */
 function wordPattern(needle: string): RegExp {
   const body = needle.split(/\s+/).map(escapeRegExp).join('\\s+')
-  const start = WORD_CHAR.test(needle[0]) ? NOT_AFTER_WORD : ''
-  const end = WORD_CHAR.test(needle[needle.length - 1]) ? NOT_BEFORE_WORD : ''
+  const chars = Array.from(needle) // code points: don't split an astral letter at an edge
+  const start = WORD_CHAR.test(chars[0]) ? NOT_AFTER_WORD : ''
+  const end = WORD_CHAR.test(chars[chars.length - 1]) ? NOT_BEFORE_WORD : ''
   return new RegExp(start + body + end, 'u')
 }
 
