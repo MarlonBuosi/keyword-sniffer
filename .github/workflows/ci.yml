@@ -14,27 +14,64 @@ concurrency:
   # Only cancel superseded PR runs; on main a newer run must not kill a deploy.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job except `deploy` is a separate required status check on main
+# (branch protection lists them by name) and a deploy prerequisite: renaming or
+# adding one means updating branch protection and deploy's `needs` too.
 jobs:
-  # Required status check on main, and the deploy gate; keep the name.
-  quality:
+  deps:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24 # matches the server
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
+      - run: npm audit signatures
+      # Warn only: a fresh upstream advisory must not block merges and deploys.
+      - name: npm audit (warn only)
+        run: |
+          if ! npm audit --omit=dev --audit-level=high; then
+            echo "::warning title=npm audit::high/critical advisories in production dependencies, see the deps job log"
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npx biome ci
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm run build
 
-  # Deploys main to EC2 via AWS SSM, only after `quality` passes. GitHub logs in
-  # to AWS with OIDC (no stored keys); the IAM role may only run the
+  # The deploy scripts run as root on the server. ShellCheck is preinstalled
+  # on ubuntu-latest, and new *.sh files are picked up automatically.
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck
+
+  # Deploys main to EC2 via AWS SSM, only after every check passes. GitHub logs
+  # in to AWS with OIDC (no stored keys); the IAM role may only run the
   # `wa-monitor-deploy` SSM document on this one instance. Setup: deploy/AWS.md §7.
   deploy:
-    needs: quality
+    needs: [deps, lint, typecheck, test, build, shellcheck]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

@@ -25,9 +25,8 @@ Possible follow-ups:
 [Biome](https://biomejs.dev) lints and formats `src/` plus the root JSON
 configs, matching the existing style (single quotes, no semicolons, trailing
 commas, 100 columns) with sorted imports. `npm run lint` checks and
-`npm run lint:fix` applies; config is in `biome.json`. CI's `quality` job runs
-`npx biome ci` before the typecheck, so a lint or format failure blocks the
-merge and the deploy.
+`npm run lint:fix` applies; config is in `biome.json`. CI's `lint` check runs
+`npx biome ci`, so a lint or format failure blocks the merge and the deploy.
 
 Possible follow-ups:
 - **Pre-commit hook** — e.g. `lefthook` running `biome check` on staged files,
@@ -40,8 +39,8 @@ Possible follow-ups:
 Vitest suite (`src/*.test.ts`, offline) covering keyword filtering, DM
 commands, config validation, the owner check, and the reconnect / pairing
 decisions — including regression tests for past incidents. CI
-(`.github/workflows/ci.yml`, job `quality`) runs typecheck → tests → build on
-PRs and pushes to `main`.
+(`.github/workflows/ci.yml`) runs `deps`, `lint`, `typecheck`, `test`, `build`
+and `shellcheck` as separate parallel checks on PRs and pushes to `main`.
 
 Remaining test gaps (need a mocked Baileys socket):
 - **`notifier.ts`** — queue order, jitter between sends, `linkPreview: null`,
@@ -56,7 +55,7 @@ Remaining test gaps (need a mocked Baileys socket):
 Merges to `main` deploy after CI passes: job `deploy` → OIDC → SSM document
 `wa-monitor-deploy` → `deploy/update.sh <sha>` (isolated build, swap, restart,
 reconnect check). The role trusts GitHub's immutable OIDC subject
-(owner/repo IDs + `refs/heads/main`). `main` is protected with `quality` required (admin bypass).
+(owner/repo IDs + `refs/heads/main`). `main` is protected with all six CI checks required (admin bypass).
 See [deploy/AWS.md §7](deploy/AWS.md#7-automatic-deploys).
 
 Possible follow-ups:

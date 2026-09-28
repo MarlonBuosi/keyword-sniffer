@@ -117,7 +117,7 @@ journalctl -u wa-monitor -o cat -n 50 | /opt/wa-monitor/node_modules/.bin/pino-p
 
 ## 7. Automatic deploys
 
-Merges to `main` deploy themselves: CI job `quality` → job `deploy`, which
+Merges to `main` deploy themselves: CI checks → job `deploy`, which
 logs in to AWS with GitHub's OIDC token (no stored keys) and runs the SSM
 document `wa-monitor-deploy` → `deploy/update.sh <sha>` on the instance. The
 GitHub role can do nothing else: only that document, only on this instance,
