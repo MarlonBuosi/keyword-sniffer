@@ -59,10 +59,11 @@ export class Notifier {
     if (this.draining) return
     this.draining = true
     try {
-      while (this.queue.length > 0) {
-        const alert = this.queue.shift()!
+      let alert = this.queue.shift()
+      while (alert) {
         await this.send(alert)
         if (this.queue.length > 0) await sleep(this.jitterMs())
+        alert = this.queue.shift()
       }
     } finally {
       this.draining = false

@@ -90,7 +90,7 @@ export function validateConfig(input: unknown): AppConfig {
   }
 
   if (errors.length > 0) {
-    throw new Error('invalid config.json:\n  - ' + errors.join('\n  - '))
+    throw new Error(`invalid config.json:\n  - ${errors.join('\n  - ')}`)
   }
 
   return {
@@ -108,7 +108,7 @@ export function validateConfig(input: unknown): AppConfig {
 
 /** Persist config back to config.json (pretty-printed). Used by DM commands. */
 export function saveConfig(cfg: AppConfig): void {
-  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2) + '\n', 'utf8')
+  writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
 }
 
 /**

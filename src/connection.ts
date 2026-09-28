@@ -38,6 +38,9 @@ export interface SockHandlers {
   onMessage?: MessageUpsertHandler
 }
 
+/** Baileys closes with a Boom error; `output.statusCode` says why. */
+type BoomLike = { output?: { statusCode?: number } }
+
 /** BAILEYS_LOG_LEVEL if it's a valid pino level, else 'warn' (never crash on a typo). */
 function baileysLogLevel(logger: Logger): string {
   const wanted = process.env.BAILEYS_LOG_LEVEL?.trim()
@@ -180,7 +183,7 @@ export async function startSock(
     }
 
     if (connection === 'close') {
-      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode as number | undefined
+      const statusCode = (lastDisconnect?.error as BoomLike | undefined)?.output?.statusCode
 
       logger.warn({ statusCode }, 'connection closed')
 
