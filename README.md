@@ -140,10 +140,12 @@ from the logs.
 npm test             # run once (Vitest)
 npm run test:watch   # re-run on change
 npm run typecheck    # tsc over src/ including tests
+npm run lint         # Biome: lint, format and import order (read-only)
+npm run lint:fix     # apply Biome's formatting and safe fixes
 ```
 Tests live next to the code as `src/*.test.ts` and run fully offline (no
-WhatsApp). CI runs typecheck → tests → build on every PR and push to `main`
-(`.github/workflows/ci.yml`); the production build excludes test files
+WhatsApp). CI runs lint → typecheck → tests → build on every PR and push to
+`main` (`.github/workflows/ci.yml`); the production build excludes test files
 (`tsconfig.build.json`).
 
 ### Production (AWS EC2 + systemd)

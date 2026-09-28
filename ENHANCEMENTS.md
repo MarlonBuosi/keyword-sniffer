@@ -20,42 +20,18 @@ Possible follow-ups:
 
 ---
 
-## Linting & Formatting (Biome)
+## ~~Linting & Formatting (Biome)~~ — done
 
-**Goal:** enforce consistent style and catch lint issues automatically. Right
-now the only quality gate is TypeScript's `strict` typecheck (`tsc --noEmit`) —
-there's no linter or formatter.
+[Biome](https://biomejs.dev) lints and formats `src/` plus the root JSON
+configs, matching the existing style (single quotes, no semicolons, trailing
+commas, 100 columns) with sorted imports. `npm run lint` checks and
+`npm run lint:fix` applies; config is in `biome.json`. CI's `quality` job runs
+`npx biome ci` before the typecheck, so a lint or format failure blocks the
+merge and the deploy.
 
-**Why [Biome](https://biomejs.dev):** a single fast (Rust) tool that replaces
-both ESLint and Prettier, with near-zero config and one dependency instead of
-the usual ESLint plugin sprawl.
-
-### Setup
-```bash
-npm install -D --save-exact @biomejs/biome
-npx biome init          # creates biome.json
-```
-
-Add scripts to `package.json`:
-```json
-{
-  "scripts": {
-    "lint": "biome check src",
-    "format": "biome format --write src",
-    "check": "biome check --write src"
-  }
-}
-```
-
-### Notes
-- Run `biome format --write src` once to normalize the existing code, then
-  review the diff in its own commit.
-- Optional: add a pre-commit hook (e.g. via `lefthook` or `husky`) to run
-  `biome check` on staged files.
-- Optional: a CI step (GitHub Actions) running `biome ci src` + `tsc --noEmit`
-  on push/PR.
-- Keep it advisory at first — don't let formatting churn bury the meaningful
-  diffs while the project is still evolving.
+Possible follow-ups:
+- **Pre-commit hook** — e.g. `lefthook` running `biome check` on staged files,
+  if CI failures on formatting become a nuisance.
 
 ---
 
@@ -72,8 +48,6 @@ Remaining test gaps (need a mocked Baileys socket):
   media path vs text fallback. Mock `sock.sendMessage`, use fake timers.
 - **`connection.ts` wiring** — the decisions are tested in
   `connection-rules.ts`; the socket/event plumbing around them isn't.
-
-When Biome lands, add `npx biome ci src` to the `quality` job.
 
 ---
 
