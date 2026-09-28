@@ -14,11 +14,12 @@ concurrency:
   # Only cancel superseded PR runs; every main run must finish so it can deploy.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Every job is a separate required status check on main (branch protection
-# lists them by name): renaming or adding one means updating it too. When the
-# whole run succeeds on main, deploy.yml ships the commit.
+# Every job is a separate required status check on main, matched by its
+# `name:`: renaming or adding one means updating branch protection too. When
+# the whole run succeeds on main, deploy.yml ships the commit.
 jobs:
   deps:
+    name: Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -32,6 +33,7 @@ jobs:
           fi
 
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -39,6 +41,7 @@ jobs:
       - run: npx biome ci
 
   typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -46,6 +49,7 @@ jobs:
       - run: npm run typecheck
 
   test:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -53,6 +57,7 @@ jobs:
       - run: npm test
 
   build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -62,6 +67,7 @@ jobs:
   # The deploy scripts run as root on the server. ShellCheck is preinstalled
   # on ubuntu-latest, and new *.sh files are picked up automatically.
   shellcheck:
+    name: ShellCheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

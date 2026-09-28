@@ -25,7 +25,7 @@ Possible follow-ups:
 [Biome](https://biomejs.dev) lints and formats `src/` plus the root JSON
 configs, matching the existing style (single quotes, no semicolons, trailing
 commas, 100 columns) with sorted imports. `npm run lint` checks and
-`npm run lint:fix` applies; config is in `biome.json`. CI's `lint` check runs
+`npm run lint:fix` applies; config is in `biome.json`. CI's *Lint* check runs
 `npx biome ci`, so a lint or format failure blocks the merge and the deploy.
 
 Possible follow-ups:
@@ -39,8 +39,8 @@ Possible follow-ups:
 Vitest suite (`src/*.test.ts`, offline) covering keyword filtering, DM
 commands, config validation, the owner check, and the reconnect / pairing
 decisions — including regression tests for past incidents. CI
-(`.github/workflows/ci.yml`) runs `deps`, `lint`, `typecheck`, `test`, `build`
-and `shellcheck` as separate parallel checks on PRs and pushes to `main`.
+(`.github/workflows/ci.yml`) runs *Dependencies*, *Lint*, *Typecheck*, *Tests*,
+*Build* and *ShellCheck* as separate parallel checks on PRs and pushes to `main`.
 
 Remaining test gaps (need a mocked Baileys socket):
 - **`notifier.ts`** — queue order, jitter between sends, `linkPreview: null`,

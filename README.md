@@ -145,8 +145,9 @@ npm run lint:fix     # apply Biome's formatting and safe fixes
 ```
 Tests live next to the code as `src/*.test.ts` and run fully offline (no
 WhatsApp). CI runs six parallel checks on every PR and push to `main`
-(`.github/workflows/ci.yml`): `deps` (lockfile install, package signatures,
-warn-only `npm audit`), `lint`, `typecheck`, `test`, `build` and `shellcheck`
+(`.github/workflows/ci.yml`): *Dependencies* (lockfile install, package
+signatures, warn-only `npm audit`), *Lint*, *Typecheck*, *Tests*, *Build* and
+*ShellCheck*
 (the `*.sh` scripts). Each is a required check on `main`. The production build
 excludes test files (`tsconfig.build.json`).
 
