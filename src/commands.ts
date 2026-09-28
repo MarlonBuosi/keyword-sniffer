@@ -48,9 +48,7 @@ export async function handleCommand(text: string, ctx: CommandContext): Promise<
   if (lower === 'list' || lower === 'list keywords') {
     const kw = ctx.getKeywords()
     await reply(
-      kw.length > 0
-        ? `🔑 Keywords (${kw.length}):\n• ${kw.join('\n• ')}`
-        : 'No keywords set.',
+      kw.length > 0 ? `🔑 Keywords (${kw.length}):\n• ${kw.join('\n• ')}` : 'No keywords set.',
     )
     return
   }

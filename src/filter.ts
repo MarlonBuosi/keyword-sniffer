@@ -38,10 +38,7 @@ export function hasMedia(message: WAMessageContent | null | undefined): boolean 
  * "PROMOÇÃO" and "promocao" all compare equal (important for Portuguese).
  */
 export function normalize(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
 /**

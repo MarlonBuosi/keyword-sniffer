@@ -1,15 +1,16 @@
 import { installConsoleFilter } from './log-filter'
+
 installConsoleFilter() // silence libsignal console noise before anything logs
 
-import pino from 'pino'
 import type { MessageUpsertType, WAMessage, WASocket } from '@whiskeysockets/baileys'
-import { startSock } from './connection'
-import { loadConfig, saveConfig, watchConfig, type AppConfig } from './config'
-import { extractText, matchKeywords, hasMedia } from './filter'
+import pino from 'pino'
 import { handleCommand } from './commands'
+import { type AppConfig, loadConfig, saveConfig, watchConfig } from './config'
+import { startSock } from './connection'
+import { extractText, hasMedia, matchKeywords } from './filter'
+import { isFromOwner, jidUser } from './jid'
 import { Notifier } from './notifier'
 import { initStore, remember } from './store'
-import { isFromOwner, jidUser } from './jid'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -100,10 +101,7 @@ async function handleMessage(
   if (!text) return
 
   const hits = matchKeywords(text, config.keywords)
-  logger.debug(
-    { jid, matched: hits, preview: text.slice(0, 100) },
-    'group message read',
-  )
+  logger.debug({ jid, matched: hits, preview: text.slice(0, 100) }, 'group message read')
 
   if (config.forwardAll) {
     if (forwardCount >= config.forwardAllLimit) return // safety cap
@@ -121,10 +119,7 @@ async function handleMessage(
   const groupName = await resolveGroupName(sock, jid)
   const pkey = msg.key as { participant?: string; participantPn?: string }
   const sender =
-    msg.pushName ||
-    jidUser(pkey.participantPn) ||
-    jidUser(pkey.participant) ||
-    'unknown'
+    msg.pushName || jidUser(pkey.participantPn) || jidUser(pkey.participant) || 'unknown'
 
   logger.info(
     { jid, groupName, keywords: hits, sender, forwardAll: config.forwardAll },

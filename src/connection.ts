@@ -1,21 +1,21 @@
 import makeWASocket, {
-  Browsers,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  type WASocket,
   type BaileysEventMap,
+  Browsers,
+  fetchLatestBaileysVersion,
+  useMultiFileAuthState,
+  type WASocket,
 } from '@whiskeysockets/baileys'
-import qrcode from 'qrcode-terminal'
 import type { Logger } from 'pino'
-import { recall } from './store'
+import qrcode from 'qrcode-terminal'
 import {
+  decideOnClose,
   EXIT_FATAL,
   EXIT_RETRY,
-  MAX_RECONNECT_ATTEMPTS,
-  decideOnClose,
   isAbandonedPairing,
   isValidPairPhone,
+  MAX_RECONNECT_ATTEMPTS,
 } from './connection-rules'
+import { recall } from './store'
 
 const AUTH_DIR = process.env.AUTH_DIR ?? 'auth_state' // overridable, like CONFIG_PATH
 
@@ -37,6 +37,9 @@ export interface SockHandlers {
   /** Fired for every messages.upsert event. */
   onMessage?: MessageUpsertHandler
 }
+
+/** Baileys closes with a Boom error; `output.statusCode` says why. */
+type BoomLike = { output?: { statusCode?: number } }
 
 /** BAILEYS_LOG_LEVEL if it's a valid pino level, else 'warn' (never crash on a typo). */
 function baileysLogLevel(logger: Logger): string {
@@ -133,7 +136,12 @@ export async function startSock(
     // logged: `found: false` means the recipient stays on "Waiting…".
     getMessage: async (key) => {
       const message = key.id ? recall(key.id) : undefined
-      const info = { id: key.id, remoteJid: key.remoteJid, participant: key.participant, found: !!message }
+      const info = {
+        id: key.id,
+        remoteJid: key.remoteJid,
+        participant: key.participant,
+        found: !!message,
+      }
       if (message) logger.info(info, 'resend requested')
       else logger.warn(info, 'resend requested, but message not in store')
       return message
@@ -175,9 +183,7 @@ export async function startSock(
     }
 
     if (connection === 'close') {
-      const statusCode = (lastDisconnect?.error as any)?.output?.statusCode as
-        | number
-        | undefined
+      const statusCode = (lastDisconnect?.error as BoomLike | undefined)?.output?.statusCode
 
       logger.warn({ statusCode }, 'connection closed')
 

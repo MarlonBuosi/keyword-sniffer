@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import type { WAMessageContent } from '@whiskeysockets/baileys'
+import { describe, expect, it } from 'vitest'
 import { extractText, hasMedia, keywordKey, matchKeywords, normalize } from './filter'
 
 const msg = (m: object) => m as WAMessageContent
@@ -27,7 +27,14 @@ describe('matchKeywords', () => {
   })
 
   it('matches whole words only, not words that contain the keyword', () => {
-    for (const text of ['raquete', 'Vendo RAQUETE!', 'nova raquete.', '(raquete)', 'raquete🎾', 'x\nraquete\ny']) {
+    for (const text of [
+      'raquete',
+      'Vendo RAQUETE!',
+      'nova raquete.',
+      '(raquete)',
+      'raquete🎾',
+      'x\nraquete\ny',
+    ]) {
       expect(matchKeywords(text, ['raquete'])).toEqual(['raquete'])
     }
     for (const text of ['raqueteira', 'raquetes', 'minirraquete', 'raquete2']) {
@@ -113,9 +120,9 @@ describe('extractText', () => {
   })
 
   it('unwraps ephemeral and view-once wrappers', () => {
-    expect(
-      extractText(msg({ ephemeralMessage: { message: { conversation: 'efêmera' } } })),
-    ).toBe('efêmera')
+    expect(extractText(msg({ ephemeralMessage: { message: { conversation: 'efêmera' } } }))).toBe(
+      'efêmera',
+    )
     expect(
       extractText(msg({ viewOnceMessage: { message: { imageMessage: { caption: 'uma vez' } } } })),
     ).toBe('uma vez')

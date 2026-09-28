@@ -25,6 +25,7 @@ jobs:
           node-version: 24 # matches the server
           cache: npm
       - run: npm ci
+      - run: npx biome ci
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, watchFile } from 'node:fs'
+import { readFileSync, watchFile, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Logger } from 'pino'
 
@@ -90,7 +90,7 @@ export function validateConfig(input: unknown): AppConfig {
   }
 
   if (errors.length > 0) {
-    throw new Error('invalid config.json:\n  - ' + errors.join('\n  - '))
+    throw new Error(`invalid config.json:\n  - ${errors.join('\n  - ')}`)
   }
 
   return {
@@ -108,7 +108,7 @@ export function validateConfig(input: unknown): AppConfig {
 
 /** Persist config back to config.json (pretty-printed). Used by DM commands. */
 export function saveConfig(cfg: AppConfig): void {
-  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2) + '\n', 'utf8')
+  writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8')
 }
 
 /**
@@ -123,7 +123,11 @@ export function watchConfig(onReload: (cfg: AppConfig) => void, logger: Logger):
       const cfg = loadConfig()
       onReload(cfg)
       logger.info(
-        { keywords: cfg.keywords.length, groups: cfg.monitoredGroups.length, forwardAll: cfg.forwardAll },
+        {
+          keywords: cfg.keywords.length,
+          groups: cfg.monitoredGroups.length,
+          forwardAll: cfg.forwardAll,
+        },
         'config.json reloaded',
       )
     } catch (err) {

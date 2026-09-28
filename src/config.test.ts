@@ -25,20 +25,36 @@ describe('validateConfig', () => {
   })
 
   it.each([
-    ['monitoredGroups missing', { monitoredGroups: undefined }, 'monitoredGroups must be a non-empty array'],
+    [
+      'monitoredGroups missing',
+      { monitoredGroups: undefined },
+      'monitoredGroups must be a non-empty array',
+    ],
     ['monitoredGroups empty', { monitoredGroups: [] }, 'monitoredGroups must be a non-empty array'],
     ['group without @g.us', { monitoredGroups: ['123@s.whatsapp.net'] }, 'ending in "@g.us"'],
     ['keywords not an array', { keywords: 'bola' }, 'keywords must be an array'],
     ['blank keyword', { keywords: ['bola', '  '] }, 'every keyword must be a non-empty string'],
-    ['ownerJid wrong server', { ownerJid: '5511999999999@g.us' }, 'ownerJid must be a string ending in "@s.whatsapp.net"'],
+    [
+      'ownerJid wrong server',
+      { ownerJid: '5511999999999@g.us' },
+      'ownerJid must be a string ending in "@s.whatsapp.net"',
+    ],
     ['ownerJid placeholder', { ownerJid: '5511XXXXXXXXX@s.whatsapp.net' }, 'placeholder "X"s'],
     ['ownerJid without a number', { ownerJid: '@s.whatsapp.net' }, 'digits only before'],
-    ['ownerJid with a device suffix', { ownerJid: '5511999999999:2@s.whatsapp.net' }, 'digits only before'],
+    [
+      'ownerJid with a device suffix',
+      { ownerJid: '5511999999999:2@s.whatsapp.net' },
+      'digits only before',
+    ],
     ['delay min > max', { sendDelayMs: { min: 5, max: 1 } }, 'sendDelayMs must be'],
     ['delay negative', { sendDelayMs: { min: -1, max: 1 } }, 'sendDelayMs must be'],
     ['delay missing', { sendDelayMs: undefined }, 'sendDelayMs must be'],
     ['forwardAll not boolean', { forwardAll: 'yes' }, 'forwardAll, if present, must be a boolean'],
-    ['forwardAllLimit < 1', { forwardAllLimit: 0 }, 'forwardAllLimit, if present, must be a number >= 1'],
+    [
+      'forwardAllLimit < 1',
+      { forwardAllLimit: 0 },
+      'forwardAllLimit, if present, must be a number >= 1',
+    ],
   ])('rejects %s', (_name, override, message) => {
     expect(() => validateConfig({ ...valid, ...override })).toThrow(message)
   })
