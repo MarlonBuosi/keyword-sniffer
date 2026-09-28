@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Trigger a deploy through AWS SSM and wait for it (used by the CI `deploy` job;
+# Trigger a deploy through AWS SSM and wait for it (used by .github/workflows/deploy.yml;
 # expects AWS credentials + region in the environment).
 #   deploy/ssm-deploy.sh <instance-id> <commit-sha>
 set -euo pipefail

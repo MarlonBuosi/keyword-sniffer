@@ -52,7 +52,7 @@ Remaining test gaps (need a mocked Baileys socket):
 
 ## ~~Automatic Deploys (GitHub Actions → AWS SSM)~~ — done
 
-Merges to `main` deploy after CI passes: job `deploy` → OIDC → SSM document
+Merges to `main` deploy after CI passes: `deploy.yml` → OIDC → SSM document
 `wa-monitor-deploy` → `deploy/update.sh <sha>` (isolated build, swap, restart,
 reconnect check). The role trusts GitHub's immutable OIDC subject
 (owner/repo IDs + `refs/heads/main`). `main` is protected with all six CI checks required (admin bypass).

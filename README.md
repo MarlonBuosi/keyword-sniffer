@@ -156,8 +156,9 @@ First-time setup (console checklist, server bootstrap, pairing) is in
 **[deploy/AWS.md](deploy/AWS.md)**.
 
 **Deploys are automatic:** merging to `main` runs CI, and if every check
-passes, the `deploy` job ships that commit to the server via AWS SSM (no SSH,
-no stored keys), then fails the run if the bot doesn't reconnect. Redeploy
+passes, the *Deploy* workflow (`.github/workflows/deploy.yml`) ships that
+commit to the server via AWS SSM (no SSH, no stored keys), then fails the run
+if the bot doesn't reconnect. Redeploy
 from the Actions tab (*CI → Run workflow*). Setup: [deploy/AWS.md
 §7](deploy/AWS.md#7-automatic-deploys). Manual fallback:
 ```bash

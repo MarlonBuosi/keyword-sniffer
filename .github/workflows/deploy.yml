@@ -1,0 +1,43 @@
+name: Deploy
+
+# Deploys main to EC2 via AWS SSM once CI succeeds on main: a merged PR, or a
+# manual "Run workflow" of CI. Kept out of ci.yml so PRs don't show a skipped
+# deploy check. GitHub logs in to AWS with OIDC (no stored keys); the IAM role
+# may only run the `wa-monitor-deploy` SSM document on this one instance.
+# Setup: deploy/AWS.md §7.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # workflow_run always runs with main's context (and so passes the OIDC
+    # trust policy), even for runs from forks: only deploy successful CI runs
+    # of this repo's own main.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # OIDC token for AWS
+      contents: read
+    concurrency:
+      group: deploy
+      cancel-in-progress: false # never interrupt a deploy midway
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: sa-east-1
+      # The commit CI tested. GITHUB_SHA here is main's head when this run was
+      # queued, which may be newer.
+      - run: deploy/ssm-deploy.sh "${{ vars.EC2_INSTANCE_ID }}" "$COMMIT"
+        env:
+          COMMIT: ${{ github.event.workflow_run.head_sha }}

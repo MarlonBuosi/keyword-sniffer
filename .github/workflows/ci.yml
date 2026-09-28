@@ -1,22 +1,22 @@
-name: CI
+name: CI # deploy.yml triggers on this name: keep them in sync
 
 on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch: # "Run workflow" on main = manual redeploy
+  workflow_dispatch: # "Run workflow" on main = manual redeploy (via deploy.yml)
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Only cancel superseded PR runs; on main a newer run must not kill a deploy.
+  # Only cancel superseded PR runs; every main run must finish so it can deploy.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Every job except `deploy` is a separate required status check on main
-# (branch protection lists them by name) and a deploy prerequisite: renaming or
-# adding one means updating branch protection and deploy's `needs` too.
+# Every job is a separate required status check on main (branch protection
+# lists them by name): renaming or adding one means updating it too. When the
+# whole run succeeds on main, deploy.yml ships the commit.
 jobs:
   deps:
     runs-on: ubuntu-latest
@@ -66,24 +66,3 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: git ls-files -z '*.sh' | xargs -0 shellcheck
-
-  # Deploys main to EC2 via AWS SSM, only after every check passes. GitHub logs
-  # in to AWS with OIDC (no stored keys); the IAM role may only run the
-  # `wa-monitor-deploy` SSM document on this one instance. Setup: deploy/AWS.md §7.
-  deploy:
-    needs: [deps, lint, typecheck, test, build, shellcheck]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write # OIDC token for AWS
-      contents: read
-    concurrency:
-      group: deploy
-      cancel-in-progress: false # never interrupt a deploy midway
-    steps:
-      - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: sa-east-1
-      - run: deploy/ssm-deploy.sh "${{ vars.EC2_INSTANCE_ID }}" "$GITHUB_SHA"
