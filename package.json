@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
     "start": "node dist/index.js"
   },
   "engines": {
@@ -23,6 +25,7 @@
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "^26.1.1",
     "@types/qrcode-terminal": "^0.12.2",
     "pino-pretty": "^13.1.3",
