@@ -7,7 +7,7 @@
 #   DEST_DIR defaults to ~/wa-monitor-backups
 #
 # Schedule nightly, e.g. crontab:
-#   0 3 * * *  /Users/you/Dev/whatsapp-keyword-monitor/scripts/backup-auth-state.sh
+#   0 3 * * *  /Users/you/Dev/keyword-sniffer/scripts/backup-auth-state.sh
 set -euo pipefail
 umask 077 # archives contain a live session credential: owner-only
 

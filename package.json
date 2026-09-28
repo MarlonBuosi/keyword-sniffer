@@ -1,5 +1,5 @@
 {
-  "name": "whatsapp-keyword-monitor",
+  "name": "keyword-sniffer",
   "version": "1.0.0",
   "private": true,
   "description": "Monitors WhatsApp groups for keywords and DMs matches to the owner",
