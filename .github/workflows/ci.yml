@@ -1,52 +1,74 @@
-name: CI
+name: CI # deploy.yml triggers on this name: keep them in sync
 
 on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch: # "Run workflow" on main = manual redeploy
+  workflow_dispatch: # "Run workflow" on main = manual redeploy (via deploy.yml)
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Only cancel superseded PR runs; on main a newer run must not kill a deploy.
+  # Only cancel superseded PR runs; every main run must finish so it can deploy.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job is a separate required status check on main, matched by its
+# `name:`: renaming or adding one means updating branch protection too. When
+# the whole run succeeds on main, deploy.yml ships the commit.
 jobs:
-  # Required status check on main, and the deploy gate; keep the name.
-  quality:
+  deps:
+    name: Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24 # matches the server
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup
+      - run: npm audit signatures
+      # Warn only: a fresh upstream advisory must not block merges and deploys.
+      - name: npm audit (warn only)
+        run: |
+          if ! npm audit --omit=dev --audit-level=high; then
+            echo "::warning title=npm audit::high/critical advisories in production dependencies, see the deps job log"
+          fi
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npx biome ci
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm run typecheck
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: npm run build
 
-  # Deploys main to EC2 via AWS SSM, only after `quality` passes. GitHub logs in
-  # to AWS with OIDC (no stored keys); the IAM role may only run the
-  # `wa-monitor-deploy` SSM document on this one instance. Setup: deploy/AWS.md §7.
-  deploy:
-    needs: quality
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+  # The deploy scripts run as root on the server. ShellCheck is preinstalled
+  # on ubuntu-latest, and new *.sh files are picked up automatically.
+  shellcheck:
+    name: ShellCheck
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # OIDC token for AWS
-      contents: read
-    concurrency:
-      group: deploy
-      cancel-in-progress: false # never interrupt a deploy midway
     steps:
       - uses: actions/checkout@v7
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: sa-east-1
-      - run: deploy/ssm-deploy.sh "${{ vars.EC2_INSTANCE_ID }}" "$GITHUB_SHA"
+      - run: git ls-files -z '*.sh' | xargs -0 shellcheck

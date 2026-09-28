@@ -144,18 +144,22 @@ npm run lint         # Biome: lint, format and import order (read-only)
 npm run lint:fix     # apply Biome's formatting and safe fixes
 ```
 Tests live next to the code as `src/*.test.ts` and run fully offline (no
-WhatsApp). CI runs lint → typecheck → tests → build on every PR and push to
-`main` (`.github/workflows/ci.yml`); the production build excludes test files
-(`tsconfig.build.json`).
+WhatsApp). CI runs six parallel checks on every PR and push to `main`
+(`.github/workflows/ci.yml`): *Dependencies* (lockfile install, package
+signatures, warn-only `npm audit`), *Lint*, *Typecheck*, *Tests*, *Build* and
+*ShellCheck*
+(the `*.sh` scripts). Each is a required check on `main`. The production build
+excludes test files (`tsconfig.build.json`).
 
 ### Production (AWS EC2 + systemd)
 Runs as the `wa-monitor` systemd service on an EC2 instance in São Paulo.
 First-time setup (console checklist, server bootstrap, pairing) is in
 **[deploy/AWS.md](deploy/AWS.md)**.
 
-**Deploys are automatic:** merging to `main` runs CI, and if the `quality` job
-passes, the `deploy` job ships that commit to the server via AWS SSM (no SSH,
-no stored keys), then fails the run if the bot doesn't reconnect. Redeploy
+**Deploys are automatic:** merging to `main` runs CI, and if every check
+passes, the *Deploy* workflow (`.github/workflows/deploy.yml`) ships that
+commit to the server via AWS SSM (no SSH, no stored keys), then fails the run
+if the bot doesn't reconnect. Redeploy
 from the Actions tab (*CI → Run workflow*). Setup: [deploy/AWS.md
 §7](deploy/AWS.md#7-automatic-deploys). Manual fallback:
 ```bash

@@ -29,7 +29,9 @@ ARCHIVE="$DEST/auth_state-$STAMP.tar.gz"
 tar czf "$ARCHIVE" -C "$PROJECT_DIR" auth_state
 echo "backed up -> $ARCHIVE"
 
-# Prune all but the newest $KEEP archives.
+# Prune all but the newest $KEEP archives. The names are our own timestamps
+# (no spaces or newlines), so parsing ls is safe here.
+# shellcheck disable=SC2012
 ls -1t "$DEST"/auth_state-*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
   rm -f "$old"
   echo "pruned old backup: $old"

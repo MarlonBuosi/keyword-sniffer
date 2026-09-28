@@ -1,0 +1,13 @@
+name: Setup
+description: Install Node and the locked dependencies (npm ci). Run after actions/checkout.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24 # matches the server
+        cache: npm
+    # Fails if package-lock.json is out of sync with package.json.
+    - run: npm ci
+      shell: bash
