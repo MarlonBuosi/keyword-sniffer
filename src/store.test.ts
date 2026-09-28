@@ -1,8 +1,8 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WAMessageContent } from '@whiskeysockets/baileys'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SentMessageStore } from './store'
 
 const text = (s: string) => ({ conversation: s }) as WAMessageContent
@@ -55,7 +55,11 @@ describe('SentMessageStore', () => {
     expect(store.recall('5')?.conversation).toBe('5')
     const reopened = new SentMessageStore(path, undefined, 3)
     expect(reopened.size).toBe(3)
-    expect(JSON.parse(readFileSync(path, 'utf8')).entries.map((e: string[]) => e[0])).toEqual(['3', '4', '5'])
+    expect(JSON.parse(readFileSync(path, 'utf8')).entries.map((e: string[]) => e[0])).toEqual([
+      '3',
+      '4',
+      '5',
+    ])
   })
 
   it('re-remembering an id refreshes it instead of duplicating', () => {

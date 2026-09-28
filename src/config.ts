@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, watchFile } from 'node:fs'
+import { readFileSync, watchFile, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Logger } from 'pino'
 
@@ -123,7 +123,11 @@ export function watchConfig(onReload: (cfg: AppConfig) => void, logger: Logger):
       const cfg = loadConfig()
       onReload(cfg)
       logger.info(
-        { keywords: cfg.keywords.length, groups: cfg.monitoredGroups.length, forwardAll: cfg.forwardAll },
+        {
+          keywords: cfg.keywords.length,
+          groups: cfg.monitoredGroups.length,
+          forwardAll: cfg.forwardAll,
+        },
         'config.json reloaded',
       )
     } catch (err) {

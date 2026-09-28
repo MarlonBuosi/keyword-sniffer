@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MAX_RECONNECT_ATTEMPTS,
   decideOnClose,
   isAbandonedPairing,
   isValidPairPhone,
+  MAX_RECONNECT_ATTEMPTS,
 } from './connection-rules'
 
 describe('decideOnClose', () => {
@@ -38,12 +38,16 @@ describe('isValidPairPhone', () => {
     expect(isValidPairPhone(s)).toBe(true)
   })
 
-  it.each(['', '123456789', '1234567890123456', '+554184775977', '55 41 8477 5977', '5541abc75977'])(
-    'rejects %j',
-    (s) => {
-      expect(isValidPairPhone(s)).toBe(false)
-    },
-  )
+  it.each([
+    '',
+    '123456789',
+    '1234567890123456',
+    '+554184775977',
+    '55 41 8477 5977',
+    '5541abc75977',
+  ])('rejects %j', (s) => {
+    expect(isValidPairPhone(s)).toBe(false)
+  })
 })
 
 describe('isAbandonedPairing', () => {

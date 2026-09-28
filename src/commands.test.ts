@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { Logger } from 'pino'
 import type { WASocket } from '@whiskeysockets/baileys'
-import { handleCommand, type CommandContext } from './commands'
+import type { Logger } from 'pino'
+import { describe, expect, it, vi } from 'vitest'
+import { type CommandContext, handleCommand } from './commands'
 
 const OWNER = '5511999999999@s.whatsapp.net'
 

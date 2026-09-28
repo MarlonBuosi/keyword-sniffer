@@ -1,8 +1,8 @@
 import {
   downloadMediaMessage,
   normalizeMessageContent,
-  type WASocket,
   type WAMessage,
+  type WASocket,
 } from '@whiskeysockets/baileys'
 import type { Logger } from 'pino'
 
@@ -85,10 +85,7 @@ export class Notifier {
         // optional link-preview package + outbound fetch.
         await this.sock.sendMessage(this.ownerJid, { text: body, linkPreview: null })
       }
-      this.logger.info(
-        { group: a.groupName, keyword: a.keyword, media: sentAsMedia },
-        'alert sent',
-      )
+      this.logger.info({ group: a.groupName, keyword: a.keyword, media: sentAsMedia }, 'alert sent')
     } catch (err) {
       // Most likely the socket is mid-reconnect. Drop this one and keep going.
       this.logger.error({ err, group: a.groupName }, 'failed to send alert')
@@ -120,8 +117,7 @@ export class Notifier {
         await this.sock.sendMessage(this.ownerJid, { video: buffer, caption })
       } else if (content.documentMessage || content.documentWithCaptionMessage) {
         const doc =
-          content.documentMessage ??
-          content.documentWithCaptionMessage?.message?.documentMessage
+          content.documentMessage ?? content.documentWithCaptionMessage?.message?.documentMessage
         await this.sock.sendMessage(this.ownerJid, {
           document: buffer,
           mimetype: doc?.mimetype ?? 'application/octet-stream',

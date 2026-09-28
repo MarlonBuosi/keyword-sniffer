@@ -1,6 +1,5 @@
 /** The user part of a JID: drops the server and any `:device` suffix. */
-export const jidUser = (jid?: string | null): string =>
-  jid ? jid.split('@')[0].split(':')[0] : ''
+export const jidUser = (jid?: string | null): string => (jid ? jid.split('@')[0].split(':')[0] : '')
 
 /** Is this 1:1 message from the owner? Matches remoteJid or senderPn (LID-safe). */
 export function isFromOwner(

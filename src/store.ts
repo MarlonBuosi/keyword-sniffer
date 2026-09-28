@@ -77,7 +77,10 @@ export class SentMessageStore {
       }
     } catch (err) {
       this.entries.clear()
-      this.logger?.warn({ err: (err as Error).message, path }, 'sent-message store unreadable; starting empty')
+      this.logger?.warn(
+        { err: (err as Error).message, path },
+        'sent-message store unreadable; starting empty',
+      )
     }
   }
 
