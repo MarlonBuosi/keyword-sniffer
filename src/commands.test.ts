@@ -61,6 +61,17 @@ describe('handleCommand', () => {
     expect(reply).toContain('Already present: bola, ROLO')
   })
 
+  it('treats keywords that match the same messages as duplicates', async () => {
+    const { run, setKeywords } = setup(['promoção', 'head yonex'])
+    const reply = await run('add keyword promocao, Head   Yonex')
+    expect(setKeywords).not.toHaveBeenCalled()
+    expect(reply).toContain('Already present: promocao, Head   Yonex')
+  })
+
+  it('explains whole-word matching in the help text', async () => {
+    expect(await setup().run('help')).toContain('whole words')
+  })
+
   it('does not save when nothing new is added', async () => {
     const { run, setKeywords } = setup(['bola'])
     await run('add keyword BOLA')
@@ -80,6 +91,14 @@ describe('handleCommand', () => {
     expect(keywords()).toEqual(['bola', 'rolo'])
     expect(reply).toContain('Removed 1: Raquete')
     expect(reply).toContain('Not found: xyz')
+  })
+
+  it('removes accent- and spacing-insensitively', async () => {
+    const { run, keywords } = setup(['promoção', 'head yonex', 'bola'])
+    const reply = await run('remove keyword promocao, head  yonex')
+    expect(keywords()).toEqual(['bola'])
+    expect(reply).toContain('Removed 2: promoção, head yonex')
+    expect(reply).not.toContain('Not found')
   })
 
   it('allows removing the last keyword', async () => {
